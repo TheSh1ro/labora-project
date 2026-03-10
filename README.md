@@ -1,22 +1,22 @@
-# 🤖 Agente Q&A de Direito Laboral Português
+# Agente Q&A de Direito Laboral Portugues
 
-Agente conversacional pronto para produção que responde a questões sobre direito laboral e processamento salarial português, usando pesquisa web em tempo real e tool calling estruturado.
+Agente conversacional pronto para producao que responde a questoes sobre direito laboral e processamento salarial portugues, usando pesquisa web em tempo real e tool calling estruturado.
 
-> 🏆 Desenvolvido para o **HomoDeus AI Engineer Challenge 2025**
+> Desenvolvido para o **HomoDeus AI Engineer Challenge 2025**
 
-## ✨ Funcionalidades
+## Funcionalidades
 
-- **🔍 Camada de Retrieval**: Pesquisa web em fontes oficiais portuguesas (Portal das Finanças, CITE, DRE, Código do Trabalho)
-- **💬 Agente Conversacional**: Interface Q&A multi-turno com arquitetura de tool calling
-- **📊 Suite de Avaliação**: Harness de avaliação com 10+ casos de teste e métricas de qualidade
-- **📚 Citações de Fontes**: Cada resposta inclui URLs das fontes consultadas
-- **🧮 Cálculos Especializados**: Subsídios, TSU, IRS com fórmulas e passo a passo
+- **Camada de Retrieval**: Pesquisa web em fontes oficiais portuguesas (Portal das Financas, CITE, DRE, Codigo do Trabalho)
+- **Agente Conversacional**: Interface Q&A multi-turno com arquitetura de tool calling
+- **Suite de Avaliacao**: Harness de avaliacao com 12 casos de teste e metricas de qualidade
+- **Citacoes de Fontes**: Cada resposta inclui URLs das fontes consultadas
+- **Calculos Especializados**: Subsidios, TSU, IRS com formulas e passo a passo
 
-## 🚀 Quick Start
+## Quick Start
 
-### Pré-requisitos
+### Pre-requisitos
 
-- Node.js 18+
+- Node.js 20+
 - Python 3.9+
 - API Keys: Groq e Tavily
 
@@ -28,10 +28,10 @@ O agente usa o modelo **`llama-3.3-70b-versatile`** via [Groq API](https://groq.
 
 ```bash
 git clone <repository-url>
-cd agente-direito-laboral-pt
+cd homodeus-app-v1
 ```
 
-### 2. Configure as Variáveis de Ambiente
+### 2. Configure as Variaveis de Ambiente
 
 ```bash
 # Backend
@@ -40,10 +40,10 @@ cp backend/.env.example backend/.env
 
 # Frontend
 cp .env.example .env
-# Edite .env se necessário (padrão: http://localhost:8000)
+# Edite .env se necessario (padrao: http://localhost:8000)
 ```
 
-### 3. Instale as Dependências
+### 3. Instale as Dependencias
 
 ```bash
 # Backend
@@ -71,7 +71,7 @@ npm run dev
 - Frontend: http://localhost:5173
 - API Docs: http://localhost:8000/docs
 
-## 🏗️ Arquitetura
+## Arquitetura
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -87,7 +87,7 @@ npm run dev
 │                        BACKEND (FastAPI)                         │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │              Agente Conversacional                      │    │
-│  │         (Groq / Tool Calling)                          │    │
+│  │         (Groq / LLaMA 3.3 70B / Tool Calling)          │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                              │                                   │
 │        ┌─────────────────────┼─────────────────────┐             │
@@ -107,79 +107,99 @@ npm run dev
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 🛠️ Tools Disponíveis
+## Tools Disponiveis
 
-| Tool | Descrição | Fontes |
+| Tool | Descricao | Fontes |
 |------|-----------|--------|
-| `search_labor_law` | Pesquisa no Código do Trabalho | portal.act.gov.pt |
-| `search_irs_tables` | Consulta tabelas de retenção IRS | info.portaldasfinancas.gov.pt |
-| `search_social_security` | Pesquisa TSU e contribuições | diariodarepublica.pt |
-| `calculate_vacation_subsidy` | Calcula subsídio de férias | - |
-| `calculate_christmas_subsidy` | Calcula subsídio de Natal | - |
-| `get_minimum_wage` | Retorna salário mínimo nacional | - |
-| `calculate_tsu` | Calcula contribuições TSU | - |
+| `search_labor_law` | Pesquisa no Codigo do Trabalho | portal.act.gov.pt |
+| `search_irs_tables` | Consulta tabelas de retencao IRS | info.portaldasfinancas.gov.pt |
+| `search_social_security` | Pesquisa TSU e contribuicoes | diariodarepublica.pt |
+| `calculate_vacation_subsidy` | Calcula subsidio de ferias | - |
+| `calculate_christmas_subsidy` | Calcula subsidio de Natal | - |
+| `get_minimum_wage` | Retorna salario minimo nacional | - |
+| `calculate_tsu` | Calcula contribuicoes TSU | - |
 
-## 📊 Suite de Avaliação
+## Suite de Avaliacao
 
-### Métricas
+### Metricas
 
-| Métrica | Descrição | Peso |
+| Metrica | Descricao | Peso |
 |---------|-----------|------|
 | Correctness | Resposta factualmente correta | 40% |
 | Citation Quality | Fontes citadas e relevantes | 30% |
-| Graceful Refusal | Recusa apropriada quando não sabe | 20% |
+| Graceful Refusal | Recusa apropriada quando nao sabe | 20% |
 | Response Time | Tempo de resposta < 10s | 10% |
 
-### Casos de Teste
+### Casos de Teste (12)
 
-- **Básico**: Salário mínimo, dias de férias
-- **Intermédio**: Cálculo de subsídios, taxas TSU, aviso prévio
-- **Avançado**: IRS, lay-off, cálculos proporcionais
-- **Limite**: Teletrabalho internacional, cláusulas de não concorrência
+| ID | Categoria | Pergunta |
+|----|-----------|----------|
+| basic_001 | Basico | Qual e o salario minimo nacional atual? |
+| basic_002 | Basico | A quantos dias de ferias tenho direito? |
+| intermediate_001 | Intermedio | Como calcular subsidio de ferias para 1500€? |
+| intermediate_002 | Intermedio | Quais as taxas TSU? |
+| intermediate_003 | Intermedio | Prazo de aviso previo para 3 anos? |
+| advanced_001 | Avancado | Calculo proporcional do subsidio de Natal |
+| advanced_002 | Avancado | Taxas IRS para solteiro com 2200€ |
+| advanced_003 | Avancado | Condicoes para lay-off |
+| limit_001 | Limite | Teletrabalho de Espanha |
+| limit_002 | Limite | Clausula de nao concorrencia de 3 anos |
+| extra_001 | Intermedio | Subsidio de Natal para trabalhador contratado em julho com 2000€ |
+| extra_002 | Intermedio | Valor liquido de trabalhador com 1800€ brutos |
 
-## 📝 Exemplos de Perguntas
+## Exemplos de Perguntas
 
 ```
-✅ "Qual é o salário mínimo nacional atual em Portugal?"
-✅ "A quantos dias de férias tem direito um trabalhador a tempo inteiro?"
-✅ "Como se calcula o subsídio de férias para um trabalhador que ganha 1.500 EUR/mês?"
-✅ "Quais são as taxas de contribuição TSU do empregador e do trabalhador?"
-✅ "Que prazo de aviso prévio é necessário para despedir um trabalhador com 3 anos de antiguidade?"
-✅ "Quais as taxas de retenção na fonte de IRS para um contribuinte solteiro com 2.200 EUR brutos/mês?"
+"Qual e o salario minimo nacional atual em Portugal?"
+"A quantos dias de ferias tem direito um trabalhador a tempo inteiro?"
+"Como se calcula o subsidio de ferias para um trabalhador que ganha 1.500 EUR/mes?"
+"Quais sao as taxas de contribuicao TSU do empregador e do trabalhador?"
+"Que prazo de aviso previo e necessario para despedir um trabalhador com 3 anos de antiguidade?"
+"Quais as taxas de retencao na fonte de IRS para um contribuinte solteiro com 2.200 EUR brutos/mes?"
 ```
 
-## 🔌 API Endpoints
+## API Endpoints
 
-| Endpoint | Método | Descrição |
+| Endpoint | Metodo | Descricao |
 |----------|--------|-----------|
 | `/` | GET | Health check |
+| `/health` | GET | Health check detalhado |
 | `/chat` | POST | Enviar mensagem |
+| `/chat/stream` | POST | Enviar mensagem com streaming |
 | `/evaluation/cases` | GET | Listar casos de teste |
-| `/evaluation/run` | POST | Executar avaliação |
-| `/tools` | GET | Listar tools disponíveis |
+| `/evaluation/run` | POST | Executar avaliacao |
+| `/agent/info` | GET | Informacoes sobre o agente e modelo |
+| `/agent/usage` | GET | Consumo acumulado de tokens e custo estimado |
+| `/agent/usage` | DELETE | Reiniciar contadores de tokens |
+| `/tools` | GET | Listar tools disponiveis |
 | `/sources` | GET | Listar fontes oficiais |
 
-## 🧪 Executar Testes
+## Decisoes de Arquitetura
 
-```bash
-cd backend
-pytest
-```
+1. **Tool Calling vs Prompting**: Arquitetura de tool calling estruturada em vez de prompting de turno unico para maior controlo, rastreabilidade e testabilidade.
 
-## 📁 Estrutura do Projeto
+2. **Groq + LLaMA 3.3 70B**: Uso da Groq API com o modelo `llama-3.3-70b-versatile` para inferencia rapida com suporte nativo a tool calling.
+
+3. **Fontes Oficiais**: Integracao com Tavily API para pesquisa em dominios oficiais portugueses, garantindo factualidade.
+
+4. **Calculos Localizados**: Formulas de calculo implementadas localmente para garantir precisao matematica.
+
+5. **Avaliacao Automatizada**: Suite de avaliacao com metricas quantitativas para medir qualidade do agente.
+
+## Estrutura do Projeto
 
 ```
 .
-├── backend/              # Python FastAPI Backend
+├── backend/
 │   ├── app/
-│   │   ├── main.py      # Entry point
-│   │   ├── agent.py     # Agente conversacional
-│   │   ├── tools.py     # Tool definitions
-│   │   ├── models.py    # Pydantic models
-│   │   └── evaluation.py # Suite de avaliação
+│   │   ├── main.py
+│   │   ├── agent.py
+│   │   ├── tools.py
+│   │   ├── models.py
+│   │   └── evaluation.py
 │   ├── requirements.txt
 │   └── .env.example
-├── src/                  # React Frontend
+├── src/
 │   ├── components/
 │   │   ├── Chat.tsx
 │   │   ├── Message.tsx
@@ -194,22 +214,10 @@ pytest
 └── README.md
 ```
 
-## 🎯 Decisões de Arquitetura
-
-1. **Tool Calling vs Prompting**: Escolhi arquitetura de tool calling estruturada em vez de prompting de turno único para maior controle e precisão.
-
-2. **Groq + LLaMA 3.3 70B**: Uso da Groq API com o modelo `llama-3.3-70b-versatile` para inferência rápida com suporte nativo a tool calling, substituindo a OpenAI.
-
-3. **Fontes Oficiais**: Integração com Tavily API para pesquisa em domínios oficiais portugueses, garantindo factualidade.
-
-3. **Cálculos Localizados**: Fórmulas de cálculo implementadas localmente para garantir precisão matemática.
-
-4. **Avaliação Automatizada**: Suite de avaliação com métricas quantitativas para medir qualidade do agente.
-
-## 📄 Licença
+## Licenca
 
 MIT License - Desenvolvido para o HomoDeus Challenge 2025.
 
 ---
 
-**Nota**: Este agente é um demonstrador técnico. Para aconselhamento jurídico específico, consulte um advogado especializado.
+**Nota**: Este agente e um demonstrador tecnico. Para aconselhamento juridico especifico, consulte um advogado especializado.

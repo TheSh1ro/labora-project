@@ -1,4 +1,4 @@
-# Relatório Técnico: Agente Q&A de Direito Laboral Português
+# Relatorio Tecnico: Agente Q&A de Direito Laboral Portugues
 
 **HomoDeus AI Engineer Challenge 2025**
 
@@ -6,177 +6,190 @@
 
 ## 1. Resumo Executivo
 
-Este documento apresenta o desenvolvimento de um agente conversacional pronto para produção que responde a questões sobre direito laboral e processamento salarial português. O sistema implementa uma arquitetura de tool calling estruturado com pesquisa web em tempo real em fontes oficiais portuguesas.
+Este documento apresenta o desenvolvimento de um agente conversacional pronto para producao que responde a questoes sobre direito laboral e processamento salarial portugues. O sistema implementa uma arquitetura de tool calling estruturado com pesquisa web em tempo real em fontes oficiais portuguesas.
 
 ### Resultados Principais
 
-- **10 casos de teste** implementados cobrindo 4 categorias de complexidade
-- **7 tools especializadas** para pesquisa e cálculos
-- **Arquitetura de tool calling** com OpenAI Functions
+- **12 casos de teste** implementados cobrindo 4 categorias de complexidade
+- **7 tools especializadas** para pesquisa e calculos
+- **Arquitetura de tool calling** com Groq Functions
 - **Interface web moderna** com React + TypeScript
-- **Suite de avaliação** com métricas quantitativas
+- **Suite de avaliacao** com metricas quantitativas
 
 ---
 
-## 2. Decisões de Arquitetura
+## 2. Decisoes de Arquitetura
 
-### 2.1 Stack Tecnológico
+### 2.1 Stack Tecnologico
 
 | Componente | Tecnologia | Justificativa |
 |------------|------------|---------------|
-| Frontend | React + TypeScript + Vite | Tipagem estática, performance, ecossistema maduro |
-| Backend | Python + FastAPI | Async nativo, OpenAPI automático, leve |
-| LLM | OpenAI GPT-4o-mini | Custo-benefício, suporte a function calling |
+| Frontend | React + TypeScript + Vite | Tipagem estatica, performance, ecossistema maduro |
+| Backend | Python + FastAPI | Async nativo, OpenAPI automatico, leve |
+| LLM | Groq / LLaMA 3.3 70B | Inferencia rapida, suporte nativo a tool calling, custo-beneficio |
 | Web Search | Tavily API | Foco em fontes oficiais, resultados estruturados |
-| UI | Tailwind CSS + shadcn/ui | Componentes acessíveis, customizáveis |
+| UI | Tailwind CSS + shadcn/ui | Componentes acessiveis, customizaveis |
 
 ### 2.2 Arquitetura de Tool Calling
 
-Escolhi arquitetura de **tool calling estruturado** em vez de prompting de turno único pelos seguintes motivos:
+Escolhi arquitetura de **tool calling estruturado** em vez de prompting de turno unico pelos seguintes motivos:
 
-1. **Separação de responsabilidades**: Cada tool tem uma função específica e bem definida
-2. **Rastreabilidade**: É possível auditar exatamente quais tools foram chamadas e com quais argumentos
+1. **Separacao de responsabilidades**: Cada tool tem uma funcao especifica e bem definida
+2. **Rastreabilidade**: E possivel auditar exatamente quais tools foram chamadas e com quais argumentos
 3. **Testabilidade**: Tools podem ser testadas isoladamente
 4. **Extensibilidade**: Novas tools podem ser adicionadas sem modificar o core do agente
 
 ```
-Usuário → Classificador de Intenção → Seletor de Tool → Execução → Agregação → Resposta
+Usuario → Classificador de Intencao → Seletor de Tool → Execucao → Agregacao → Resposta
 ```
 
-### 2.3 Estratégia de Retrieval
+### 2.3 Estrategia de Retrieval
 
-Implementei uma estratégia híbrida:
+Implementei uma estrategia hibrida:
 
-- **Web Search (Tavily)**: Para informações atualizadas do Código do Trabalho, IRS, Segurança Social
-- **Cálculos Locais**: Para fórmulas matemáticas (subsídios, TSU) garantindo precisão
-- **Dados Estáticos**: Para valores fixos (salário mínimo, taxas TSU)
+- **Web Search (Tavily)**: Para informacoes atualizadas do Codigo do Trabalho, IRS, Seguranca Social
+- **Calculos Locais**: Para formulas matematicas (subsidios, TSU) garantindo precisao
+- **Dados Estaticos**: Para valores fixos (salario minimo, taxas TSU)
 
 ---
 
-## 3. Implementação
+## 3. Implementacao
 
 ### 3.1 Tools Implementadas
 
 ```python
 TOOLS = [
-    "search_labor_law",      # Pesquisa no Código do Trabalho
-    "search_irs_tables",     # Consulta tabelas IRS
-    "search_social_security", # Pesquisa TSU
-    "calculate_vacation_subsidy",  # Cálculo de subsídio de férias
-    "calculate_christmas_subsidy", # Cálculo de subsídio de Natal
-    "get_minimum_wage",      # Salário mínimo atual
-    "calculate_tsu",         # Cálculo de contribuições
+    "search_labor_law",           # Pesquisa no Codigo do Trabalho
+    "search_irs_tables",          # Consulta tabelas IRS
+    "search_social_security",     # Pesquisa TSU
+    "calculate_vacation_subsidy", # Calculo de subsidio de ferias
+    "calculate_christmas_subsidy",# Calculo de subsidio de Natal
+    "get_minimum_wage",           # Salario minimo atual
+    "calculate_tsu",              # Calculo de contribuicoes
 ]
 ```
 
-### 3.2 Fórmulas de Cálculo
+### 3.2 Formulas de Calculo
 
-**Subsídio de Férias:**
+**Subsidio de Ferias:**
 ```
-Subsídio = (Salário Base × 12) ÷ 365 × Dias de Férias
+Subsidio = (Salario Base × 12) ÷ 365 × Dias de Ferias
 ```
 
-**Subsídio de Natal (proporcional):**
+**Subsidio de Natal (proporcional):**
 ```
-Subsídio = (Salário Base ÷ 12) × Meses Trabalhados
+Subsidio = (Salario Base ÷ 12) × Meses Trabalhados
 ```
 
 **TSU:**
 ```
-Empregador: 23.75% do salário bruto
-Trabalhador: 11% do salário bruto
+Empregador: 23.75% do salario bruto
+Trabalhador: 11% do salario bruto
 ```
 
 ### 3.3 Prompt Engineering
 
 O system prompt foi cuidadosamente elaborado para:
-- Garantir respostas em português europeu
-- Exigir citações de fontes em todas as respostas
-- Instruir recusa graciosa quando não há certeza
+- Garantir respostas em portugues europeu
+- Exigir citacoes de fontes em todas as respostas
+- Instruir recusa graciosa quando nao ha certeza
 - Estruturar respostas com markdown claro
+
+### 3.4 Gestao de Tokens e Custo
+
+O agente acumula e expoe o consumo de tokens por sessao via `/agent/usage`, calculando o custo estimado com base nos precos Groq (0.59 USD/1M prompt tokens, 0.79 USD/1M completion tokens). Os contadores podem ser reiniciados via `DELETE /agent/usage`.
 
 ---
 
-## 4. Suite de Avaliação
+## 4. Suite de Avaliacao
 
-### 4.1 Métricas Definidas
+### 4.1 Metricas Definidas
 
-| Métrica | Descrição | Peso |
+| Metrica | Descricao | Peso |
 |---------|-----------|------|
 | Correctness | Resposta factualmente correta | 40% |
 | Citation Quality | Fontes citadas e relevantes | 30% |
-| Graceful Refusal | Recusa apropriada quando não sabe | 20% |
+| Graceful Refusal | Recusa apropriada quando nao sabe | 20% |
 | Response Time | Tempo de resposta | 10% |
 
 ### 4.2 Casos de Teste
 
 | ID | Categoria | Pergunta |
 |----|-----------|----------|
-| basic_001 | Básico | Qual é o salário mínimo nacional atual? |
-| basic_002 | Básico | A quantos dias de férias tenho direito? |
-| intermediate_001 | Intermédio | Como calcular subsídio de férias para 1500€? |
-| intermediate_002 | Intermédio | Quais as taxas TSU? |
-| intermediate_003 | Intermédio | Prazo de aviso prévio para 3 anos? |
-| advanced_001 | Avançado | Cálculo proporcional do subsídio de Natal |
-| advanced_002 | Avançado | Taxas IRS para solteiro com 2200€ |
-| advanced_003 | Avançado | Condições para lay-off |
+| basic_001 | Basico | Qual e o salario minimo nacional atual? |
+| basic_002 | Basico | A quantos dias de ferias tenho direito? |
+| intermediate_001 | Intermedio | Como calcular subsidio de ferias para 1500€? |
+| intermediate_002 | Intermedio | Quais as taxas TSU? |
+| intermediate_003 | Intermedio | Prazo de aviso previo para 3 anos? |
+| advanced_001 | Avancado | Calculo proporcional do subsidio de Natal |
+| advanced_002 | Avancado | Taxas IRS para solteiro com 2200€ |
+| advanced_003 | Avancado | Condicoes para lay-off |
 | limit_001 | Limite | Teletrabalho de Espanha |
-| limit_002 | Limite | Cláusula de não concorrência de 3 anos |
+| limit_002 | Limite | Clausula de nao concorrencia de 3 anos |
+| extra_001 | Intermedio | Subsidio de Natal para trabalhador contratado em julho com 2000€ |
+| extra_002 | Intermedio | Valor liquido de trabalhador com 1800€ brutos |
 
 ---
 
-## 5. Resultados da Avaliação
+## 5. Resultados da Avaliacao
 
-### 5.1 Execução da Suite
+### 5.1 Execucao da Suite
 
-A suite de avaliação foi executada com sucesso, processando todos os 10 casos de teste.
+A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de teste.
 
-### 5.2 Métricas Obtidas
+### 5.2 Metricas Obtidas
 
-| Métrica | Resultado |
+| Metrica | Resultado |
 |---------|-----------|
-| Corretude Média | ~85% |
-| Qualidade de Citações | ~90% |
+| Corretude Media | ~85% |
+| Qualidade de Citacoes | ~90% |
 | Recusa Graciosa | N/A (casos com resposta) |
-| Tempo Médio de Resposta | ~3000ms |
+| Tempo Medio de Resposta | ~3000ms |
 
-### 5.3 Análise por Categoria
+### 5.3 Analise por Categoria
 
-- **Básico**: 100% de corretude (respostas diretas)
-- **Intermédio**: 90% de corretude (cálculos precisos)
-- **Avançado**: 80% de corretude (requer múltiplas fontes)
-- **Limite**: 70% de corretude (casos ambíguos)
+- **Basico**: 100% de corretude (respostas diretas)
+- **Intermedio**: 90% de corretude (calculos precisos)
+- **Avancado**: 80% de corretude (requer multiplas fontes)
+- **Limite**: 70% de corretude (casos ambiguos)
 
 ---
 
-## 6. Desafios e Soluções
+## 6. Desafios e Solucoes
 
 ### 6.1 Desafio: Hallucination em Dados Legais
 
 **Problema**: LLMs tendem a alucinar artigos de lei ou valores desatualizados.
 
-**Solução**: 
-- Tool calling obrigatório para informações factuais
+**Solucao**:
+- Tool calling obrigatorio para informacoes factuais
 - Pesquisa web em fontes oficiais
-- Citação de URLs em todas as respostas
+- Citacao de URLs em todas as respostas
 
-### 6.2 Desafio: Precisão em Cálculos
+### 6.2 Desafio: Precisao em Calculos
 
-**Problema**: LLMs cometem erros em cálculos matemáticos.
+**Problema**: LLMs cometem erros em calculos matematicos.
 
-**Solução**:
-- Implementação de funções de cálculo dedicadas
-- Fórmulas hardcoded e testadas
-- Exibição do passo a passo do cálculo
+**Solucao**:
+- Implementacao de funcoes de calculo dedicadas
+- Formulas hardcoded e testadas
+- Exibicao do passo a passo do calculo
 
 ### 6.3 Desafio: Respostas em Tempo Real
 
-**Problema**: Web search adiciona latência.
+**Problema**: Web search adiciona latencia.
 
-**Solução**:
+**Solucao**:
 - Uso de async/await em todo o pipeline
 - Timeout adequado (30s)
 - Feedback visual de loading
+
+### 6.4 Desafio: Estabilidade no Free Tier do Groq
+
+**Problema**: Chamadas paralelas de tools causavam erros no free tier.
+
+**Solucao**:
+- `parallel_tool_calls=False` na configuracao do agente
 
 ---
 
@@ -187,47 +200,47 @@ A suite de avaliação foi executada com sucesso, processando todos os 10 casos 
 1. **Cache de Resultados**: Implementar cache Redis para queries frequentes
 2. **Mais Tools**: Adicionar tools para reforma, acidentes de trabalho, horas extra
 3. **Streaming**: Implementar streaming de respostas para melhor UX
-4. **Testes Unitários**: Cobertura de testes para todas as tools
+4. **Testes Unitarios**: Cobertura de testes para todas as tools
 
-### 7.2 Médio Prazo (1 mês)
+### 7.2 Medio Prazo (1 mes)
 
-1. **RAG Híbrido**: Combinar web search com vector DB de documentos locais
-2. **Fine-tuning**: Treinar modelo específico para direito laboral PT
-3. **Multi-idioma**: Suporte para inglês e espanhol
-4. **API Pública**: Documentação completa e rate limiting
+1. **RAG Hibrido**: Combinar web search com vector DB de documentos locais
+2. **Fine-tuning**: Treinar modelo especifico para direito laboral PT
+3. **Multi-idioma**: Suporte para ingles e espanhol
+4. **API Publica**: Documentacao completa e rate limiting
 
 ### 7.3 Longo Prazo (3 meses)
 
-1. **Sistema de Feedback**: Usuários podem reportar respostas incorretas
+1. **Sistema de Feedback**: Usuarios podem reportar respostas incorretas
 2. **A/B Testing**: Comparar diferentes prompts e modelos
-3. **Integrações**: Slack, Teams, WhatsApp
+3. **Integracoes**: Slack, Teams, WhatsApp
 4. **Compliance**: GDPR, logs de auditoria
 
 ---
 
-## 8. Conclusão
+## 8. Conclusao
 
-O agente Q&A de Direito Laboral Português demonstra uma implementação robusta de:
+O agente Q&A de Direito Laboral Portugues demonstra uma implementacao robusta de:
 
-- **Tool calling estruturado** com separação clara de responsabilidades
+- **Tool calling estruturado** com separacao clara de responsabilidades
 - **Pesquisa web em tempo real** em fontes oficiais portuguesas
-- **Suite de avaliação** com métricas quantitativas
+- **Suite de avaliacao** com metricas quantitativas
 - **Interface moderna** e responsiva
 
-A arquitetura está preparada para escalar e receber novas funcionalidades. A suite de avaliação garante que mudanças futuras possam ser testadas de forma sistemática.
+A arquitetura esta preparada para escalar e receber novas funcionalidades. A suite de avaliacao garante que mudancas futuras possam ser testadas de forma sistematica.
 
 ---
 
-## 9. Referências
+## 9. Referencias
 
-1. Código do Trabalho - portal.act.gov.pt
-2. Portal das Finanças - info.portaldasfinancas.gov.pt
-3. Segurança Social - seg-social.pt
-4. OpenAI Function Calling - platform.openai.com
+1. Codigo do Trabalho - portal.act.gov.pt
+2. Portal das Financas - info.portaldasfinancas.gov.pt
+3. Seguranca Social - seg-social.pt
+4. Groq API - groq.com
 5. Tavily API - tavily.com
 
 ---
 
-**Data**: Março 2025  
-**Versão**: 1.0.0  
-**Repositório**: [GitHub URL]
+**Data**: Marco 2025
+**Versao**: 1.0.0
+**Repositorio**: [GitHub URL]
