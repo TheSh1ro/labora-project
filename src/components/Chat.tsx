@@ -17,11 +17,17 @@ const SUGGESTED_QUESTIONS = [
   'Como funciona o subsídio de Natal?',
 ];
 
-export function Chat() {
+interface ChatProps {
+  chatHook?: ReturnType<typeof useChat>;
+}
+
+export function Chat({ chatHook }: ChatProps) {
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Usa o hook passado por prop (partilhado com App) ou cria um local
+  const internalHook = useChat();
   const {
     messages,
     isLoading,
@@ -31,16 +37,14 @@ export function Chat() {
     responseTime,
     sendMessage,
     clearChat,
-  } = useChat();
+  } = chatHook ?? internalHook;
 
-  // Auto-scroll para a última mensagem
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
 
-  // Focus no input ao iniciar
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -48,7 +52,6 @@ export function Chat() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-
     const message = input.trim();
     setInput('');
     await sendMessage(message);
@@ -59,9 +62,7 @@ export function Chat() {
     inputRef.current?.focus();
   };
 
-  const lastAssistantMessage = messages
-    .filter(m => m.role === 'assistant')
-    .pop();
+  const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
 
   return (
     <div className="flex flex-col h-full bg-slate-950">
@@ -108,11 +109,8 @@ export function Chat() {
               Posso ajudar com questões sobre o Código do Trabalho, processamento
               salarial, IRS, TSU, férias e subsídios em Portugal.
             </p>
-
             <div className="w-full max-w-lg">
-              <p className="text-xs text-slate-500 mb-3 text-center">
-                Perguntas sugeridas:
-              </p>
+              <p className="text-xs text-slate-500 mb-3 text-center">Perguntas sugeridas:</p>
               <div className="flex flex-wrap justify-center gap-2">
                 {SUGGESTED_QUESTIONS.map((question, index) => (
                   <button
@@ -134,43 +132,28 @@ export function Chat() {
         ) : (
           <div className="py-4 space-y-2">
             {messages.map((message, index) => (
-              <Message
-                key={index}
-                message={message}
-              />
+              <Message key={index} message={message} />
             ))}
 
-            {/* Loading indicator */}
             {isLoading && (
               <div className="flex gap-3 p-4 animate-in fade-in">
                 <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
                   <Sparkles size={14} className="text-slate-300" />
                 </div>
                 <div className="bg-slate-800 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
-                  <span
-                    className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
-                    style={{ animationDelay: '0ms' }}
-                  />
-                  <span
-                    className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
-                    style={{ animationDelay: '150ms' }}
-                  />
-                  <span
-                    className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
-                    style={{ animationDelay: '300ms' }}
-                  />
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             )}
 
-            {/* Error message */}
             {error && (
               <div className="mx-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                 <p className="text-xs text-red-400">{error}</p>
               </div>
             )}
 
-            {/* Sources and Tool Calls for last message */}
             {lastAssistantMessage && !isLoading && (
               <div className="ml-14 mr-4">
                 <ToolCallDisplay toolCalls={lastToolCalls} />
