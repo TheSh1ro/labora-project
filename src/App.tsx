@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { Chat } from '@/components/Chat';
 import { EvaluationDashboard } from '@/components/EvaluationDashboard';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, BarChart3, Github, BookOpen } from 'lucide-react';
+import { MessageSquare, BarChart3, Github, BookOpen, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useChat } from '@/hooks/useChat';
 
 type Tab = 'chat' | 'evaluation';
 
@@ -12,19 +13,22 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 interface AgentInfo {
   model: string;
   provider: string;
-  framework: string;
+  display_name: string;
   tool_calling: boolean;
 }
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+  const chatHook = useChat();
+  const { sessionUsage } = chatHook;
+  // const hasUsage = sessionUsage.total_tokens > 0;
 
   useEffect(() => {
     fetch(`${API_URL}/agent/info`)
       .then(res => res.json())
       .then(data => setAgentInfo(data))
-      .catch(() => null); // falha silenciosa — footer fica sem info de modelo
+      .catch(() => null);
   }, []);
 
   return (
@@ -70,6 +74,29 @@ function App() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div
+            className={cn(
+              'flex items-center gap-2 px-3 py-1.5 rounded-md',
+              'border border-slate-700 bg-slate-800/60',
+              'transition-opacity duration-300',
+              // hasUsage ? 'opacity-100' : 'opacity-40'
+            )}
+          >
+            <Coins size={12} className="text-amber-400 flex-shrink-0" />
+            <div className="flex items-center gap-2 text-[10px]">
+              <span className="text-slate-400">
+                <span className="text-slate-200 font-medium tabular-nums">
+                  {sessionUsage.total_tokens.toLocaleString()}
+                </span>
+                {' '}tokens
+              </span>
+              <span className="text-slate-600">·</span>
+              <span className="text-amber-400 font-medium tabular-nums">
+                ${sessionUsage.estimated_cost_usd.toFixed(4)}
+              </span>
+            </div>
+          </div>
+
           <Button
             variant="ghost"
             size="sm"
@@ -82,9 +109,12 @@ function App() {
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* Main Content — passa o hook ao Chat para partilhar estado */}
       <main className="flex-1 overflow-hidden">
-        {activeTab === 'chat' ? <Chat /> : <EvaluationDashboard />}
+        {activeTab === 'chat'
+          ? <Chat chatHook={chatHook} />
+          : <EvaluationDashboard />
+        }
       </main>
 
       {/* Footer */}
@@ -98,7 +128,7 @@ function App() {
           <div className="flex items-center gap-4">
             {agentInfo ? (
               <>
-                <span>{agentInfo.provider} · {agentInfo.framework}</span>
+                <span>{agentInfo.provider} · {agentInfo.display_name}</span>
                 <span>•</span>
               </>
             ) : null}
