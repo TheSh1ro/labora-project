@@ -1,3 +1,5 @@
+# backend\app\tools.py
+
 """
 Tools para o agente de direito laboral português.
 Implementa pesquisa web e cálculos especializados.
@@ -6,6 +8,9 @@ Implementa pesquisa web e cálculos especializados.
 import os
 from typing import Dict, Any, Optional
 from tavily import TavilyClient
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Inicializa cliente Tavily
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
