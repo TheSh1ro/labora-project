@@ -1,23 +1,27 @@
 """
 Agente Conversacional de Direito Laboral Português.
-Implementa tool calling com OpenAI Functions.
+Implementa tool calling com Groq (llama-3.3-70b-versatile).
 """
 
 import os
 import json
 import time
-from typing import List, Dict, Any, Optional
-from openai import AsyncOpenAI
+from typing import List, Dict, Any
+from groq import AsyncGroq
 
 from .tools import TOOLS_SCHEMA, TOOL_FUNCTIONS
 from .models import Message, Source, ToolCallInfo, ChatResponse
 
-# Inicializa cliente OpenAI
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+# Inicializa cliente Groq
+from dotenv import load_dotenv
+
+load_dotenv()
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+openai_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 # Modelo a usar
-MODEL = "gpt-4o-mini"
+MODEL = "llama-3.3-70b-versatile"
 
 # System prompt
 SYSTEM_PROMPT = """Tu és um Agente de Direito Laboral Português especializado. A tua função é responder a questões sobre direito laboral e processamento salarial em Portugal com precisão factual.
@@ -79,7 +83,7 @@ class LaborLawAgent:
             return ChatResponse(
                 message=Message(
                     role="assistant",
-                    content="❌ Erro: OpenAI API key não configurada. Por favor, configure a variável de ambiente OPENAI_API_KEY.",
+                    content="❌ Erro: Groq API key não configurada. Por favor, configure a variável de ambiente GROQ_API_KEY.",
                 ),
                 sources=[],
                 tool_calls=[],
@@ -104,13 +108,14 @@ class LaborLawAgent:
 
         try:
             for iteration in range(max_iterations):
-                # Chama OpenAI com tools
+                # Chama Groq com tools
                 response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=openai_messages,
                     tools=self.tools,
                     tool_choice="auto",
-                    temperature=0.3,  # Baixa temperatura para respostas mais determinísticas
+                    parallel_tool_calls=False,  # Evita problemas no free tier do Groq
+                    temperature=0.3,
                     max_tokens=2000,
                 )
 
@@ -141,7 +146,9 @@ class LaborLawAgent:
 
                 for tool_call in message.tool_calls:
                     function_name = tool_call.function.name
-                    function_args = json.loads(tool_call.function.arguments)
+                    function_args = (
+                        json.loads(tool_call.function.arguments or "{}") or {}
+                    )
 
                     # Registra a tool call
                     tool_info = ToolCallInfo(
