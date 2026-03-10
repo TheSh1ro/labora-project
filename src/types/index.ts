@@ -32,11 +32,19 @@ export interface ToolCallInfo {
   error?: string;
 }
 
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
 export interface ChatResponse {
   message: Message;
   sources: Source[];
   tool_calls: ToolCallInfo[];
   response_time_ms: number;
+  usage: TokenUsage;
 }
 
 export interface ChatRequest {

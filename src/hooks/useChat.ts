@@ -3,6 +3,13 @@ import type { Message, ChatResponse, Source, ToolCallInfo } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
 interface ChatState {
   messages: Message[];
   isLoading: boolean;
@@ -10,7 +17,15 @@ interface ChatState {
   lastSources: Source[];
   lastToolCalls: ToolCallInfo[];
   responseTime: number | null;
+  sessionUsage: TokenUsage;
 }
+
+const EMPTY_USAGE: TokenUsage = {
+  prompt_tokens: 0,
+  completion_tokens: 0,
+  total_tokens: 0,
+  estimated_cost_usd: 0,
+};
 
 export function useChat() {
   const [state, setState] = useState<ChatState>({
@@ -20,12 +35,12 @@ export function useChat() {
     lastSources: [],
     lastToolCalls: [],
     responseTime: null,
+    sessionUsage: EMPTY_USAGE,
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(async (content: string) => {
-    // Cancela requisição anterior se existir
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -48,13 +63,8 @@ export function useChat() {
     try {
       const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: updatedMessages,
-          stream: false,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: updatedMessages, stream: false }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -72,20 +82,22 @@ export function useChat() {
         lastSources: data.sources,
         lastToolCalls: data.tool_calls,
         responseTime: data.response_time_ms,
+        sessionUsage: data.usage
+          ? {
+              prompt_tokens: prev.sessionUsage.prompt_tokens + data.usage.prompt_tokens,
+              completion_tokens: prev.sessionUsage.completion_tokens + data.usage.completion_tokens,
+              total_tokens: prev.sessionUsage.total_tokens + data.usage.total_tokens,
+              estimated_cost_usd: prev.sessionUsage.estimated_cost_usd + data.usage.estimated_cost_usd,
+            }
+          : prev.sessionUsage,
       }));
 
       return data;
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return null;
-      }
+      if (err instanceof Error && err.name === 'AbortError') return null;
 
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
+      setState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
       throw err;
     }
   }, [state.messages]);
@@ -101,6 +113,7 @@ export function useChat() {
       lastSources: [],
       lastToolCalls: [],
       responseTime: null,
+      sessionUsage: EMPTY_USAGE,
     });
   }, []);
 
@@ -111,6 +124,7 @@ export function useChat() {
     lastSources: state.lastSources,
     lastToolCalls: state.lastToolCalls,
     responseTime: state.responseTime,
+    sessionUsage: state.sessionUsage,
     sendMessage,
     clearChat,
   };
