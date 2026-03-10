@@ -190,9 +190,6 @@ export function Chat({ chatHook }: ChatProps) {
             <Send size={16} />
           </Button>
         </form>
-        <p className="text-[10px] text-slate-500 mt-2 text-center">
-          As respostas são geradas por IA e devem ser verificadas com as fontes oficiais.
-        </p>
       </div>
     </div>
   );
