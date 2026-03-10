@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -63,6 +64,19 @@ export function EvaluationDashboard() {
     }
   };
 
+  const exportResults = () => {
+    if (!results) return;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `evaluation_${timestamp}.json`;
+    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Carrega casos na primeira renderização
   if (!hasLoaded) {
     loadCases();
@@ -94,26 +108,38 @@ export function EvaluationDashboard() {
             </div>
           </div>
 
-          <Button
-            onClick={runEvaluation}
-            disabled={isRunning}
-            className={cn(
-              'bg-emerald-600 hover:bg-emerald-700 text-white',
-              'disabled:opacity-50 disabled:cursor-not-allowed'
+          <div className="flex items-center gap-2">
+            {results && (
+              <Button
+                onClick={exportResults}
+                variant="outline"
+                className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+              >
+                <Download size={16} className="mr-2" />
+                Exportar JSON
+              </Button>
             )}
-          >
-            {isRunning ? (
-              <>
-                <Loader2 size={16} className="mr-2 animate-spin" />
-                Executando...
-              </>
-            ) : (
-              <>
-                <Play size={16} className="mr-2" />
-                Executar Avaliação
-              </>
-            )}
-          </Button>
+            <Button
+              onClick={runEvaluation}
+              disabled={isRunning}
+              className={cn(
+                'bg-emerald-600 hover:bg-emerald-700 text-white',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            >
+              {isRunning ? (
+                <>
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  Executando...
+                </>
+              ) : (
+                <>
+                  <Play size={16} className="mr-2" />
+                  Executar Avaliação
+                </>
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Results Summary */}
