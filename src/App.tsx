@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Chat } from '@/components/Chat';
 import { EvaluationDashboard } from '@/components/EvaluationDashboard';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,25 @@ import { cn } from '@/lib/utils';
 
 type Tab = 'chat' | 'evaluation';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+interface AgentInfo {
+  model: string;
+  provider: string;
+  framework: string;
+  tool_calling: boolean;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
+  const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/agent/info`)
+      .then(res => res.json())
+      .then(data => setAgentInfo(data))
+      .catch(() => null); // falha silenciosa — footer fica sem info de modelo
+  }, []);
 
   return (
     <div className="h-screen bg-slate-950 flex flex-col">
@@ -79,8 +96,12 @@ function App() {
             <span>HomoDeus Challenge 2025</span>
           </div>
           <div className="flex items-center gap-4">
-            <span>OpenAI GPT-4o</span>
-            <span>•</span>
+            {agentInfo ? (
+              <>
+                <span>{agentInfo.provider} · {agentInfo.framework}</span>
+                <span>•</span>
+              </>
+            ) : null}
             <span>Tool Calling</span>
             <span>•</span>
             <span>Tavily Search</span>
