@@ -2,11 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Trash2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChat } from '@/hooks/useChat';
-import { Message } from './Message';
-import { SourcesPanel } from './SourcesPanel';
-import { ToolCallDisplay } from './ToolCall';
+import { Message } from '@/components/Message';
+import { SourcesPanel } from '@/components/SourcesPanel';
+import { ToolCallDisplay } from '@/components/ToolCall';
 import { cn } from '@/lib/utils';
 
 const SUGGESTED_QUESTIONS = [
@@ -26,7 +25,6 @@ export function Chat({ chatHook }: ChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Usa o hook passado por prop (partilhado com App) ou cria um local
   const internalHook = useChat();
   const {
     messages,
@@ -96,7 +94,7 @@ export function Chat({ chatHook }: ChatProps) {
       </div>
 
       {/* Messages Area */}
-      <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full py-12">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center mb-6 shadow-lg shadow-blue-900/20">
@@ -162,7 +160,7 @@ export function Chat({ chatHook }: ChatProps) {
             )}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Input Area */}
       <div className="p-4 border-t border-slate-800 bg-slate-900/50">
