@@ -17,6 +17,7 @@ from .models import (
     HealthResponse,
     EvaluationSummary,
     EvaluationCase,
+    TokenUsage,
 )
 from .agent import agent
 from .evaluation import evaluation_harness
@@ -122,12 +123,23 @@ async def run_evaluation(case_ids: Optional[List[str]] = None):
 
 @app.get("/agent/info")
 async def agent_info():
-    """
-    Retorna informações relevantes sobre o agente e o modelo em uso.
-    """
+    """Retorna informacoes sobre o agente e modelo em uso."""
     from .agent import AGENT_CONFIG
 
     return AGENT_CONFIG
+
+
+@app.get("/agent/usage", response_model=TokenUsage)
+async def agent_usage():
+    """Retorna o consumo acumulado de tokens e custo estimado da sessao."""
+    return agent.get_session_usage()
+
+
+@app.delete("/agent/usage")
+async def reset_agent_usage():
+    """Reinicia os contadores de tokens da sessao."""
+    agent.reset_session_usage()
+    return {"status": "reset"}
 
 
 @app.get("/tools")
