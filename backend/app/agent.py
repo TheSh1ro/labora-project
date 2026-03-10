@@ -10,9 +10,8 @@ from typing import List, Dict, Any
 from groq import AsyncGroq
 
 from .tools import TOOLS_SCHEMA, TOOL_FUNCTIONS
-from .models import Message, Source, ToolCallInfo, ChatResponse
+from .models import Message, Source, ToolCallInfo, ChatResponse, TokenUsage
 
-# Inicializa cliente Groq
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,19 +19,26 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 openai_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-# Modelo a usar
 MODEL = "llama-3.3-70b-versatile"
 
-# Configuração do agente — derivada do MODEL, sem duplicação
+PRICING = {
+    "prompt": 0.59 / 1_000_000,
+    "completion": 0.79 / 1_000_000,
+}
+
 AGENT_CONFIG = {
     "model": MODEL,
     "provider": "Groq",
     "provider_url": "https://groq.com",
-    "framework": MODEL,
+    "display_name": "LLaMA 3.3 70B",
     "tool_calling": True,
     "max_iterations": 5,
     "temperature": 0.3,
     "features": ["tool_calling", "web_search", "citations", "calculations"],
+    "pricing_usd_per_1m": {
+        "prompt": 0.59,
+        "completion": 0.79,
+    },
 }
 
 # System prompt
@@ -65,7 +71,7 @@ QUANDO RECUSAR:
 FORMATO DAS RESPOSTAS:
 - Responde diretamente à pergunta
 - Inclui cálculos detalhados quando aplicável
-- Termina sempre com uma secção "📚 Fontes" listando as referências
+- Termina sempre com uma secção "📚 Fontes" listando o link das referências usadas
 """
 
 
@@ -77,32 +83,49 @@ class LaborLawAgent:
         self.model = MODEL
         self.tools = TOOLS_SCHEMA
         self.tool_functions = TOOL_FUNCTIONS
+        self._session_prompt_tokens = 0
+        self._session_completion_tokens = 0
+
+    def _calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
+        return round(
+            prompt_tokens * PRICING["prompt"]
+            + completion_tokens * PRICING["completion"],
+            6,
+        )
+
+    def get_session_usage(self) -> TokenUsage:
+        total = self._session_prompt_tokens + self._session_completion_tokens
+        return TokenUsage(
+            prompt_tokens=self._session_prompt_tokens,
+            completion_tokens=self._session_completion_tokens,
+            total_tokens=total,
+            estimated_cost_usd=self._calculate_cost(
+                self._session_prompt_tokens, self._session_completion_tokens
+            ),
+        )
+
+    def reset_session_usage(self) -> None:
+        self._session_prompt_tokens = 0
+        self._session_completion_tokens = 0
 
     async def chat(self, messages: List[Message], stream: bool = False) -> ChatResponse:
-        """
-        Processa uma conversação com o agente.
-
-        Args:
-            messages: Lista de mensagens
-            stream: Se deve fazer streaming da resposta
-
-        Returns:
-            Resposta do agente com fontes e tool calls
-        """
         start_time = time.time()
+
+        call_prompt_tokens = 0
+        call_completion_tokens = 0
 
         if not self.client:
             return ChatResponse(
                 message=Message(
                     role="assistant",
-                    content="❌ Erro: Groq API key não configurada. Por favor, configure a variável de ambiente GROQ_API_KEY.",
+                    content="Erro: Groq API key nao configurada.",
                 ),
                 sources=[],
                 tool_calls=[],
                 response_time_ms=(time.time() - start_time) * 1000,
+                usage=TokenUsage(),
             )
 
-        # Prepara mensagens para OpenAI
         openai_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for msg in messages:
             msg_dict = {"role": msg.role, "content": msg.content}
@@ -120,7 +143,6 @@ class LaborLawAgent:
 
         try:
             for iteration in range(max_iterations):
-                # Chama Groq com tools
                 response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=openai_messages,
@@ -131,23 +153,36 @@ class LaborLawAgent:
                     max_tokens=2000,
                 )
 
+                if response.usage:
+                    call_prompt_tokens += response.usage.prompt_tokens
+                    call_completion_tokens += response.usage.completion_tokens
+
                 message = response.choices[0].message
 
-                # Se não há tool calls, retorna a resposta
                 if not message.tool_calls:
+                    self._session_prompt_tokens += call_prompt_tokens
+                    self._session_completion_tokens += call_completion_tokens
+
                     response_time = (time.time() - start_time) * 1000
                     return ChatResponse(
                         message=Message(
                             role="assistant",
                             content=message.content
-                            or "Não foi possível gerar uma resposta.",
+                            or "Nao foi possivel gerar uma resposta.",
                         ),
                         sources=all_sources,
                         tool_calls=all_tool_calls,
                         response_time_ms=response_time,
+                        usage=TokenUsage(
+                            prompt_tokens=call_prompt_tokens,
+                            completion_tokens=call_completion_tokens,
+                            total_tokens=call_prompt_tokens + call_completion_tokens,
+                            estimated_cost_usd=self._calculate_cost(
+                                call_prompt_tokens, call_completion_tokens
+                            ),
+                        ),
                     )
 
-                # Processa tool calls
                 openai_messages.append(
                     {
                         "role": "assistant",
@@ -161,13 +196,10 @@ class LaborLawAgent:
                     function_args = (
                         json.loads(tool_call.function.arguments or "{}") or {}
                     )
-
-                    # Registra a tool call
                     tool_info = ToolCallInfo(
                         name=function_name, arguments=function_args
                     )
 
-                    # Executa a função
                     if function_name in self.tool_functions:
                         try:
                             result = await self._execute_tool(
@@ -175,22 +207,17 @@ class LaborLawAgent:
                             )
                             tool_info.result = json.dumps(result, ensure_ascii=False)[
                                 :500
-                            ]  # Limita tamanho
-
-                            # Extrai fontes dos resultados
+                            ]
                             sources = self._extract_sources(result)
                             all_sources.extend(sources)
-
                         except Exception as e:
                             result = {"error": str(e)}
                             tool_info.error = str(e)
                     else:
-                        result = {"error": f"Função {function_name} não encontrada"}
+                        result = {"error": f"Funcao {function_name} nao encontrada"}
                         tool_info.error = result["error"]
 
                     all_tool_calls.append(tool_info)
-
-                    # Adiciona resultado às mensagens
                     openai_messages.append(
                         {
                             "role": "tool",
@@ -200,41 +227,57 @@ class LaborLawAgent:
                         }
                     )
 
-            # Se atingiu o máximo de iterações, retorna o que tem
+            self._session_prompt_tokens += call_prompt_tokens
+            self._session_completion_tokens += call_completion_tokens
+
             response_time = (time.time() - start_time) * 1000
             return ChatResponse(
                 message=Message(
                     role="assistant",
-                    content="⚠️ Atingi o limite de iterações. Por favor, reformule a tua pergunta.",
+                    content="Atingi o limite de iteracoes. Por favor, reformule a tua pergunta.",
                 ),
                 sources=all_sources,
                 tool_calls=all_tool_calls,
                 response_time_ms=response_time,
+                usage=TokenUsage(
+                    prompt_tokens=call_prompt_tokens,
+                    completion_tokens=call_completion_tokens,
+                    total_tokens=call_prompt_tokens + call_completion_tokens,
+                    estimated_cost_usd=self._calculate_cost(
+                        call_prompt_tokens, call_completion_tokens
+                    ),
+                ),
             )
 
         except Exception as e:
+            self._session_prompt_tokens += call_prompt_tokens
+            self._session_completion_tokens += call_completion_tokens
+
             response_time = (time.time() - start_time) * 1000
             return ChatResponse(
                 message=Message(
                     role="assistant",
-                    content=f"❌ Erro ao processar a solicitação: {str(e)}",
+                    content=f"Erro ao processar a solicitacao: {str(e)}",
                 ),
                 sources=all_sources,
                 tool_calls=all_tool_calls,
                 response_time_ms=response_time,
+                usage=TokenUsage(
+                    prompt_tokens=call_prompt_tokens,
+                    completion_tokens=call_completion_tokens,
+                    total_tokens=call_prompt_tokens + call_completion_tokens,
+                    estimated_cost_usd=self._calculate_cost(
+                        call_prompt_tokens, call_completion_tokens
+                    ),
+                ),
             )
 
     async def _execute_tool(self, name: str, args: Dict[str, Any]) -> Any:
-        """Executa uma tool de forma assíncrona."""
         func = self.tool_functions[name]
-        # As funções são síncronas, mas podemos executá-las
         return func(**args)
 
     def _extract_sources(self, result: Dict[str, Any]) -> List[Source]:
-        """Extrai fontes do resultado de uma tool."""
         sources = []
-
-        # Extrai de 'results' (Tavily)
         if "results" in result and isinstance(result["results"], list):
             for item in result["results"]:
                 if isinstance(item, dict):
@@ -245,8 +288,6 @@ class LaborLawAgent:
                             snippet=item.get("content", "")[:200],
                         )
                     )
-
-        # Extrai de 'sources'
         if "sources" in result and isinstance(result["sources"], list):
             for item in result["sources"]:
                 if isinstance(item, dict):
@@ -257,9 +298,7 @@ class LaborLawAgent:
                             snippet=item.get("snippet", ""),
                         )
                     )
-
         return sources
 
 
-# Instância global do agente
 agent = LaborLawAgent()

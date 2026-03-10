@@ -41,6 +41,15 @@ class ToolCallInfo(BaseModel):
     error: Optional[str] = None
 
 
+class TokenUsage(BaseModel):
+    """Uso de tokens e custo estimado por chamada."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    estimated_cost_usd: float = 0.0
+
+
 class ChatResponse(BaseModel):
     """Response do endpoint de chat."""
 
@@ -48,6 +57,7 @@ class ChatResponse(BaseModel):
     sources: List[Source] = Field(default_factory=list)
     tool_calls: List[ToolCallInfo] = Field(default_factory=list)
     response_time_ms: float
+    usage: TokenUsage = Field(default_factory=TokenUsage)
 
 
 class EvaluationCase(BaseModel):
@@ -68,15 +78,15 @@ class EvaluationResult(BaseModel):
     response: str
     sources: List[Source]
     tool_calls: List[ToolCallInfo]
-    correctness_score: float  # 0-1
-    citation_score: float  # 0-1
-    refusal_score: float  # 0-1 (1 = recusou apropriadamente)
+    correctness_score: float
+    citation_score: float
+    refusal_score: float
     response_time_ms: float
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
 class EvaluationSummary(BaseModel):
-    """Resumo da avaliação."""
+    """Resumo da avaliacao."""
 
     total_cases: int
     avg_correctness: float
