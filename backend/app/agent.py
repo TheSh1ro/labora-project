@@ -1,3 +1,5 @@
+# backend\app\agent.py
+
 """
 Agente Conversacional de Direito Laboral Português.
 Implementa tool calling com Groq (llama-3.3-70b-versatile).

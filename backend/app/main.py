@@ -1,3 +1,5 @@
+# backend\app\main.py
+
 """
 FastAPI Backend - Agente Q&A de Direito Laboral Português
 """

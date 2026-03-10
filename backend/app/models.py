@@ -1,3 +1,5 @@
+# backend\app\models.py
+
 """
 Modelos Pydantic para o agente de direito laboral.
 """

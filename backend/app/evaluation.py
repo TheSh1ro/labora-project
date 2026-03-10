@@ -1,3 +1,5 @@
+# backend\app\evaluation.py
+
 """
 Suite de Avaliação do Agente de Direito Laboral.
 Implementa casos de teste e métricas de qualidade.
