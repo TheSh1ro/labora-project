@@ -1,6 +1,7 @@
 """
 FastAPI Backend - Agente Q&A de Direito Laboral Português
 """
+
 import os
 from typing import List, Optional
 from contextlib import asynccontextmanager
@@ -11,11 +12,11 @@ from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 
 from .models import (
-    ChatRequest, 
-    ChatResponse, 
+    ChatRequest,
+    ChatResponse,
     HealthResponse,
     EvaluationSummary,
-    EvaluationCase
+    EvaluationCase,
 )
 from .agent import agent
 from .evaluation import evaluation_harness
@@ -39,7 +40,7 @@ app = FastAPI(
     title="Agente Q&A de Direito Laboral Português",
     description="Agente conversacional para responder questões sobre direito laboral e processamento salarial português",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -68,14 +69,11 @@ async def health():
 async def chat(request: ChatRequest):
     """
     Endpoint principal de chat.
-    
+
     Recebe uma lista de mensagens e retorna a resposta do agente.
     """
     try:
-        response = await agent.chat(
-            messages=request.messages,
-            stream=request.stream
-        )
+        response = await agent.chat(messages=request.messages, stream=request.stream)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no processamento: {str(e)}")
@@ -89,14 +87,11 @@ async def chat_stream(request: ChatRequest):
     # Para simplificar, retornamos a resposta completa
     # Em uma implementação completa, usaríamos SSE ou WebSockets
     response = await agent.chat(messages=request.messages, stream=False)
-    
+
     async def generate():
         yield f"data: {response.message.content}\n\n"
-    
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream"
-    )
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.get("/evaluation/cases", response_model=List[EvaluationCase])
@@ -111,10 +106,10 @@ async def get_evaluation_cases():
 async def run_evaluation(case_ids: Optional[List[str]] = None):
     """
     Executa a suite de avaliação.
-    
+
     Args:
         case_ids: IDs dos casos a executar (None = todos)
-    
+
     Returns:
         Resumo da avaliação com métricas
     """
@@ -131,6 +126,7 @@ async def list_tools():
     Lista as tools disponíveis no agente.
     """
     from .tools import TOOLS_SCHEMA
+
     return {"tools": TOOLS_SCHEMA}
 
 
@@ -144,33 +140,34 @@ async def list_sources():
             {
                 "name": "Código do Trabalho",
                 "url": "https://portal.act.gov.pt",
-                "description": "Código do Trabalho consolidado atualizado"
+                "description": "Código do Trabalho consolidado atualizado",
             },
             {
                 "name": "Portal das Finanças - IRS",
                 "url": "https://info.portaldasfinancas.gov.pt",
-                "description": "Tabelas de retenção na fonte de IRS"
+                "description": "Tabelas de retenção na fonte de IRS",
             },
             {
                 "name": "Segurança Social",
                 "url": "https://www.seg-social.pt",
-                "description": "Informações sobre TSU e contribuições"
+                "description": "Informações sobre TSU e contribuições",
             },
             {
                 "name": "Diário da República",
                 "url": "https://diariodarepublica.pt",
-                "description": "Legislação oficial portuguesa"
+                "description": "Legislação oficial portuguesa",
             },
             {
                 "name": "CITE",
                 "url": "https://www.cite.gov.pt",
-                "description": "Comissão para a Igualdade no Trabalho e no Emprego"
-            }
+                "description": "Comissão para a Igualdade no Trabalho e no Emprego",
+            },
         ]
     }
 
 
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)

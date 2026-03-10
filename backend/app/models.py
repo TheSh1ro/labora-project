@@ -1,6 +1,7 @@
 """
 Modelos Pydantic para o agente de direito laboral.
 """
+
 from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -8,6 +9,7 @@ from datetime import datetime
 
 class Message(BaseModel):
     """Mensagem no chat."""
+
     role: Literal["user", "assistant", "system", "tool"]
     content: str
     tool_calls: Optional[List[Dict[str, Any]]] = None
@@ -17,12 +19,14 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request para o endpoint de chat."""
+
     messages: List[Message]
     stream: bool = False
 
 
 class Source(BaseModel):
     """Fonte de informação."""
+
     title: str
     url: str
     snippet: Optional[str] = None
@@ -30,6 +34,7 @@ class Source(BaseModel):
 
 class ToolCallInfo(BaseModel):
     """Informação sobre uma tool call."""
+
     name: str
     arguments: Dict[str, Any]
     result: Optional[str] = None
@@ -38,6 +43,7 @@ class ToolCallInfo(BaseModel):
 
 class ChatResponse(BaseModel):
     """Response do endpoint de chat."""
+
     message: Message
     sources: List[Source] = Field(default_factory=list)
     tool_calls: List[ToolCallInfo] = Field(default_factory=list)
@@ -46,6 +52,7 @@ class ChatResponse(BaseModel):
 
 class EvaluationCase(BaseModel):
     """Caso de teste para avaliação."""
+
     id: str
     question: str
     category: Literal["básico", "intermédio", "avançado", "limite"]
@@ -56,6 +63,7 @@ class EvaluationCase(BaseModel):
 
 class EvaluationResult(BaseModel):
     """Resultado de um caso de teste."""
+
     case: EvaluationCase
     response: str
     sources: List[Source]
@@ -69,6 +77,7 @@ class EvaluationResult(BaseModel):
 
 class EvaluationSummary(BaseModel):
     """Resumo da avaliação."""
+
     total_cases: int
     avg_correctness: float
     avg_citation: float
@@ -81,6 +90,7 @@ class EvaluationSummary(BaseModel):
 
 class HealthResponse(BaseModel):
     """Response do health check."""
+
     status: str
     version: str = "1.0.0"
     timestamp: datetime = Field(default_factory=datetime.now)
