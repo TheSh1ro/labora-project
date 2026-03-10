@@ -23,6 +23,18 @@ openai_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 # Modelo a usar
 MODEL = "llama-3.3-70b-versatile"
 
+# Configuração do agente — derivada do MODEL, sem duplicação
+AGENT_CONFIG = {
+    "model": MODEL,
+    "provider": "Groq",
+    "provider_url": "https://groq.com",
+    "framework": MODEL,
+    "tool_calling": True,
+    "max_iterations": 5,
+    "temperature": 0.3,
+    "features": ["tool_calling", "web_search", "citations", "calculations"],
+}
+
 # System prompt
 SYSTEM_PROMPT = """Tu és um Agente de Direito Laboral Português especializado. A tua função é responder a questões sobre direito laboral e processamento salarial em Portugal com precisão factual.
 

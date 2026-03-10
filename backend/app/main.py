@@ -120,6 +120,16 @@ async def run_evaluation(case_ids: Optional[List[str]] = None):
         raise HTTPException(status_code=500, detail=f"Erro na avaliação: {str(e)}")
 
 
+@app.get("/agent/info")
+async def agent_info():
+    """
+    Retorna informações relevantes sobre o agente e o modelo em uso.
+    """
+    from .agent import AGENT_CONFIG
+
+    return AGENT_CONFIG
+
+
 @app.get("/tools")
 async def list_tools():
     """
