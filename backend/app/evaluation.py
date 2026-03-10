@@ -3,10 +3,8 @@ Suite de Avaliação do Agente de Direito Laboral.
 Implementa casos de teste e métricas de qualidade.
 """
 
-import asyncio
 import time
 from typing import List, Dict, Any
-from datetime import datetime
 
 from .agent import agent
 from .models import EvaluationCase, EvaluationResult, EvaluationSummary, Message

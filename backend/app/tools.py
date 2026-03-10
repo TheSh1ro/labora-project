@@ -4,10 +4,8 @@ Implementa pesquisa web e cálculos especializados.
 """
 
 import os
-import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from tavily import TavilyClient
-from datetime import datetime
 
 # Inicializa cliente Tavily
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
