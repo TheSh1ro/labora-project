@@ -18,7 +18,11 @@ Agente conversacional pronto para produção que responde a questões sobre dire
 
 - Node.js 18+
 - Python 3.9+
-- API Keys: OpenAI e Tavily
+- API Keys: Groq e Tavily
+
+### Modelo LLM
+
+O agente usa o modelo **`llama-3.3-70b-versatile`** via [Groq API](https://groq.com), com suporte a tool calling nativo.
 
 ### 1. Clone e Instale
 
@@ -32,7 +36,7 @@ cd agente-direito-laboral-pt
 ```bash
 # Backend
 cp backend/.env.example backend/.env
-# Edite backend/.env com suas API keys
+# Edite backend/.env com suas API keys (GROQ_API_KEY e TAVILY_API_KEY)
 
 # Frontend
 cp .env.example .env
@@ -83,7 +87,7 @@ npm run dev
 │                        BACKEND (FastAPI)                         │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │              Agente Conversacional                      │    │
-│  │         (OpenAI Functions / Tool Calling)               │    │
+│  │         (Groq / Tool Calling)                          │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                              │                                   │
 │        ┌─────────────────────┼─────────────────────┐             │
@@ -194,7 +198,9 @@ pytest
 
 1. **Tool Calling vs Prompting**: Escolhi arquitetura de tool calling estruturada em vez de prompting de turno único para maior controle e precisão.
 
-2. **Fontes Oficiais**: Integração com Tavily API para pesquisa em domínios oficiais portugueses, garantindo factualidade.
+2. **Groq + LLaMA 3.3 70B**: Uso da Groq API com o modelo `llama-3.3-70b-versatile` para inferência rápida com suporte nativo a tool calling, substituindo a OpenAI.
+
+3. **Fontes Oficiais**: Integração com Tavily API para pesquisa em domínios oficiais portugueses, garantindo factualidade.
 
 3. **Cálculos Localizados**: Fórmulas de cálculo implementadas localmente para garantir precisão matemática.
 
