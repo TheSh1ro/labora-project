@@ -37,6 +37,9 @@ openai_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 MODEL = "moonshotai/kimi-k2-instruct"
 
+MAX_HISTORY_TURNS = 5  # 5 pares user/assistant = 10 mensagens
+MAX_CONVERSATION_TURNS = 3  # bloqueia a 4ª pergunta
+
 PRICING = {
     "prompt": 0.59 / 1_000_000,
     "completion": 0.79 / 1_000_000,
@@ -63,10 +66,21 @@ SYSTEM_PROMPT = """És um especialista em Direito Laboral Português. Respondes 
 REGRAS:
 - Usa SEMPRE as tools disponíveis antes de responder — nunca respondas de memória
 - Mostra fórmulas e passo a passo em cálculos
-- Termina com secção "📚 Fontes" com URLs das fontes consultadas
+- Termina com secção "Fontes" com URLs das fontes consultadas
 - Responde em português europeu
 - Se não tiveres certeza, recusa graciosamente e recomenda consultar advogado
 - Recusa questões fora do âmbito laboral português
+
+FORMATO:
+- Usa headers (##) para separar secções com mais de 2 tópicos
+- Usa sempre Markdown — nunca respondas em texto plano puro
+- Separa valor principal, cálculos e fontes com linha em branco entre cada bloco
+- Valores monetários em negrito: **870 €**
+- Listas apenas quando há 3+ itens enumeráveis
+- Máximo 2 níveis de lista — nunca listas dentro de listas
+- Fórmulas em linha de código: `870 € ÷ 22 dias = 39,55 €/dia`
+- Respostas directas: o valor principal na primeira linha, detalhes a seguir
+- Evita parágrafos introdutórios redundantes ("Com base no artigo X, o valor é...")
 """
 
 # Keywords para classificação automática do contexto de negócio
@@ -258,6 +272,15 @@ def _extract_source_urls(result: Dict[str, Any]) -> List[str]:
     return [u for u in urls if u]
 
 
+def _trim_history(messages: List[Message]) -> List[Message]:
+    """Mantém as últimas N trocas + mensagem actual."""
+    max_messages = MAX_HISTORY_TURNS * 2  # cada turno = user + assistant
+    if len(messages) <= max_messages:
+        return messages
+    # Preserva as mais recentes
+    return messages[-max_messages:]
+
+
 class LaborLawAgent:
     """Agente de Direito Laboral com tool calling e logging estruturado (wide events)."""
 
@@ -331,6 +354,38 @@ class LaborLawAgent:
         call_prompt_tokens = 0
         call_completion_tokens = 0
 
+        # Bloqueia se o utilizador ultrapassou o limite de turnos (contado antes do trim)
+        user_turns = sum(1 for m in messages if m.role == "user")
+        if user_turns > MAX_CONVERSATION_TURNS:
+            logging.info(
+                f"[{request_id}] conversation limit reached: {user_turns} turnos do utilizador "
+                f"(máx={MAX_CONVERSATION_TURNS})"
+            )
+            return ChatResponse(
+                message=Message(
+                    role="assistant",
+                    content=(
+                        "Atingiste o limite de perguntas desta conversa. "
+                        "Por favor, inicia uma nova conversa para continuar. 🔄"
+                    ),
+                ),
+                sources=[],
+                tool_calls=[],
+                response_time_ms=(time.time() - start_time) * 1000,
+                usage=TokenUsage(),
+                execution_log={},
+            )
+
+        # Trunca o histórico para os últimos MAX_HISTORY_TURNS pares
+        original_count = len(messages)
+        messages = _trim_history(messages)
+        trimmed_count = original_count - len(messages)
+        if trimmed_count > 0:
+            logging.info(
+                f"[{request_id}] history truncated: {trimmed_count} mensagens removidas "
+                f"({original_count} → {len(messages)})"
+            )
+
         # Extrai e classifica a mensagem do utilizador
         user_message = next((m for m in reversed(messages) if m.role == "user"), None)
         user_text = user_message.content if user_message else ""
@@ -355,8 +410,13 @@ class LaborLawAgent:
             "input": {
                 "message": user_text,
                 **question_meta,
-                # Quantas mensagens de histórico (excluindo a mensagem actual do user)
-                "history_messages": len(messages) - 1,
+                # Turno actual do utilizador nesta conversa (antes do trim)
+                "conversation_turn": user_turns,
+                "conversation_turn_limit": MAX_CONVERSATION_TURNS,
+                # Contagem original (antes do trim) e efectiva (após trim)
+                "history_messages_received": original_count - 1,
+                "history_messages_sent": len(messages) - 1,
+                "history_trimmed": trimmed_count,
                 # Contagem de mensagens por papel para perceber o contexto enviado
                 "history_by_role": {
                     role: sum(1 for m in messages if m.role == role)
