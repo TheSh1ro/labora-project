@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Trash2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { useChat } from '@/hooks/useChat';
 import { Message } from '@/components/Message';
 import { SourcesPanel } from '@/components/SourcesPanel';
@@ -23,7 +23,7 @@ interface ChatProps {
 export function Chat({ chatHook }: ChatProps) {
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const internalHook = useChat();
   const {
@@ -47,12 +47,19 @@ export function Chat({ chatHook }: ChatProps) {
     inputRef.current?.focus();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!input.trim() || isLoading) return;
     const message = input.trim();
     setInput('');
     await sendMessage(message);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
   };
 
   const handleSuggestedQuestion = (question: string) => {
@@ -60,55 +67,31 @@ export function Chat({ chatHook }: ChatProps) {
     inputRef.current?.focus();
   };
 
-  const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
+  const lastAssistantMessage = messages
+    .filter((m) => m.role === 'assistant')
+    .pop();
 
   return (
     <div className="flex flex-col h-full bg-slate-950">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900/50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
-            <Sparkles size={16} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold text-slate-100">
-              Agente Direito Laboral PT
-            </h1>
-            <p className="text-[10px] text-slate-400">
-              Especializado em direito laboral português
-            </p>
-          </div>
-        </div>
-
-        {messages.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearChat}
-            className="text-slate-400 hover:text-red-400 hover:bg-red-500/10"
-          >
-            <Trash2 size={14} className="mr-1" />
-            Limpar
-          </Button>
-        )}
-      </div>
-
       {/* Messages Area */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-12">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center mb-6 shadow-lg shadow-blue-900/20">
-              <Sparkles size={28} className="text-white" />
+          /* Empty state — centered */
+          <div className="flex flex-col items-center justify-center h-full py-16 px-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center mb-5 shadow-lg shadow-blue-900/30">
+              <Sparkles size={24} className="text-white" />
             </div>
-            <h2 className="text-xl font-semibold text-slate-100 mb-2">
-              Olá! Sou o Agente de Direito Laboral
+            <h2 className="text-lg font-semibold text-slate-100 mb-1.5">
+              Agente de Direito Laboral
             </h2>
-            <p className="text-sm text-slate-400 text-center max-w-md mb-8">
-              Posso ajudar com questões sobre o Código do Trabalho, processamento
-              salarial, IRS, TSU, férias e subsídios em Portugal.
+            <p className="text-sm text-slate-400 text-center max-w-sm mb-8 leading-relaxed">
+              Posso ajudar com o Código do Trabalho, IRS, TSU, férias e
+              subsídios em Portugal.
             </p>
-            <div className="w-full max-w-lg">
-              <p className="text-xs text-slate-500 mb-3 text-center">Perguntas sugeridas:</p>
+            <div className="w-full max-w-[620px]">
+              <p className="text-xs text-slate-600 mb-3 text-center uppercase tracking-wider">
+                Sugestões
+              </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {SUGGESTED_QUESTIONS.map((question, index) => (
                   <button
@@ -116,8 +99,8 @@ export function Chat({ chatHook }: ChatProps) {
                     onClick={() => handleSuggestedQuestion(question)}
                     className={cn(
                       'px-3 py-1.5 text-xs rounded-full',
-                      'bg-slate-800 text-slate-300 border border-slate-700',
-                      'hover:bg-slate-700 hover:border-slate-600 hover:text-slate-200',
+                      'bg-slate-800/80 text-slate-300 border border-slate-700',
+                      'hover:bg-slate-700 hover:border-slate-500 hover:text-slate-100',
                       'transition-all duration-200'
                     )}
                   >
@@ -128,20 +111,30 @@ export function Chat({ chatHook }: ChatProps) {
             </div>
           </div>
         ) : (
-          <div className="py-4 space-y-2">
+          /* Messages — constrained width, centered */
+          <div className="py-6 space-y-1 w-full max-w-[1080px] min-w-[320px] mx-auto px-4">
             {messages.map((message, index) => (
               <Message key={index} message={message} />
             ))}
 
             {isLoading && (
               <div className="flex gap-3 p-4 animate-in fade-in">
-                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                  <Sparkles size={14} className="text-slate-300" />
+                <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={13} className="text-slate-400" />
                 </div>
-                <div className="bg-slate-800 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1.5">
+                  <span
+                    className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
+                    style={{ animationDelay: '0ms' }}
+                  />
+                  <span
+                    className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
+                    style={{ animationDelay: '150ms' }}
+                  />
+                  <span
+                    className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
+                    style={{ animationDelay: '300ms' }}
+                  />
                 </div>
               </div>
             )}
@@ -153,43 +146,69 @@ export function Chat({ chatHook }: ChatProps) {
             )}
 
             {lastAssistantMessage && !isLoading && (
-              <div className="ml-14 mr-4">
+              <div className="ml-11 mr-0 pb-2">
                 <ToolCallDisplay toolCalls={lastToolCalls} />
-                <SourcesPanel sources={lastSources} responseTime={responseTime} />
+                <SourcesPanel
+                  sources={lastSources}
+                  responseTime={responseTime}
+                />
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Input Area */}
-      <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder="Digite sua pergunta sobre direito laboral..."
-            disabled={isLoading}
-            className={cn(
-              'flex-1 bg-slate-800 border-slate-700 text-slate-100',
-              'placeholder:text-slate-500',
-              'focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500',
-              'transition-all duration-200'
-            )}
-          />
-          <Button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className={cn(
-              'bg-blue-600 hover:bg-blue-700 text-white',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
-              'transition-all duration-200'
-            )}
-          >
-            <Send size={16} />
-          </Button>
-        </form>
+      {/* Input Area — centered, matches message width */}
+      <div className="flex-shrink-0 border-t border-slate-800 bg-slate-900/40 backdrop-blur-sm py-4 px-4">
+        <div className="w-full max-w-[720px] min-w-[320px] mx-auto">
+          {messages.length > 0 && (
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={clearChat}
+                className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-red-400 transition-colors"
+              >
+                <Trash2 size={11} />
+                Limpar conversa
+              </button>
+            </div>
+          )}
+
+          <div className="relative flex items-end gap-2 bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 focus-within:border-blue-500/60 focus-within:ring-1 focus-within:ring-blue-500/20 transition-all duration-200 shadow-lg shadow-black/20">
+            <Textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Digite sua pergunta sobre direito laboral… (Enter para enviar)"
+              disabled={isLoading}
+              rows={1}
+              className={cn(
+                'flex-1 bg-transparent border-0 text-slate-100 placeholder:text-slate-500 text-sm',
+                'focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none',
+                'resize-none min-h-[24px] max-h-[160px] py-0 px-0 leading-relaxed',
+                'scrollbar-thin'
+              )}
+              style={{ fieldSizing: 'content' } as React.CSSProperties}
+            />
+            <Button
+              onClick={() => handleSubmit()}
+              disabled={isLoading || !input.trim()}
+              size="sm"
+              className={cn(
+                'bg-blue-600 hover:bg-blue-500 text-white flex-shrink-0 h-8 w-8 p-0 rounded-xl',
+                'disabled:opacity-30 disabled:cursor-not-allowed',
+                'transition-all duration-200'
+              )}
+            >
+              <Send size={14} />
+            </Button>
+          </div>
+
+          <p className="text-[10px] text-slate-600 mt-2 text-center">
+            Shift+Enter para nova linha · Este agente pode cometer erros.
+            Verifique informações importantes.
+          </p>
+        </div>
       </div>
     </div>
   );

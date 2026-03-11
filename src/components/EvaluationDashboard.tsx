@@ -21,10 +21,10 @@ import { cn } from '@/lib/utils';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  'básico': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  'intermédio': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  'avançado': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  'limite': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  básico: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  intermédio: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  avançado: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  limite: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
 };
 
 export function EvaluationDashboard() {
@@ -66,9 +66,14 @@ export function EvaluationDashboard() {
 
   const exportResults = () => {
     if (!results) return;
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, '-')
+      .slice(0, 19);
     const filename = `evaluation_${timestamp}.json`;
-    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(results, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -90,7 +95,7 @@ export function EvaluationDashboard() {
   };
 
   return (
-    <div className="h-full bg-slate-950 p-4 overflow-auto">
+    <div className="h-full bg-slate-950 py-8 overflow-auto">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -150,7 +155,12 @@ export function EvaluationDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-slate-400">Corretude</p>
-                    <p className={cn('text-2xl font-bold', getScoreColor(results.avg_correctness))}>
+                    <p
+                      className={cn(
+                        'text-2xl font-bold',
+                        getScoreColor(results.avg_correctness)
+                      )}
+                    >
                       {(results.avg_correctness * 100).toFixed(0)}%
                     </p>
                   </div>
@@ -168,7 +178,12 @@ export function EvaluationDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-slate-400">Citações</p>
-                    <p className={cn('text-2xl font-bold', getScoreColor(results.avg_citation))}>
+                    <p
+                      className={cn(
+                        'text-2xl font-bold',
+                        getScoreColor(results.avg_citation)
+                      )}
+                    >
                       {(results.avg_citation * 100).toFixed(0)}%
                     </p>
                   </div>
@@ -186,7 +201,12 @@ export function EvaluationDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-slate-400">Recusa Graciosa</p>
-                    <p className={cn('text-2xl font-bold', getScoreColor(results.avg_refusal))}>
+                    <p
+                      className={cn(
+                        'text-2xl font-bold',
+                        getScoreColor(results.avg_refusal)
+                      )}
+                    >
                       {(results.avg_refusal * 100).toFixed(0)}%
                     </p>
                   </div>
@@ -229,21 +249,28 @@ export function EvaluationDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(results.results_by_category).map(([category, data]) => (
-                  <div
-                    key={category}
-                    className={cn(
-                      'p-3 rounded-lg border',
-                      CATEGORY_COLORS[category] || 'bg-slate-800 text-slate-300 border-slate-700'
-                    )}
-                  >
-                    <p className="text-xs font-medium capitalize">{category}</p>
-                    <p className="text-lg font-bold mt-1">
-                      {(data.avg_correctness * 100).toFixed(0)}%
-                    </p>
-                    <p className="text-[10px] opacity-70">{data.count} casos</p>
-                  </div>
-                ))}
+                {Object.entries(results.results_by_category).map(
+                  ([category, data]) => (
+                    <div
+                      key={category}
+                      className={cn(
+                        'p-3 rounded-lg border',
+                        CATEGORY_COLORS[category] ||
+                          'bg-slate-800 text-slate-300 border-slate-700'
+                      )}
+                    >
+                      <p className="text-xs font-medium capitalize">
+                        {category}
+                      </p>
+                      <p className="text-lg font-bold mt-1">
+                        {(data.avg_correctness * 100).toFixed(0)}%
+                      </p>
+                      <p className="text-[10px] opacity-70">
+                        {data.count} casos
+                      </p>
+                    </div>
+                  )
+                )}
               </div>
             </CardContent>
           </Card>
@@ -272,11 +299,15 @@ export function EvaluationDashboard() {
                     )}
                   >
                     <button
-                      onClick={() => setExpandedCase(isExpanded ? null : result.case.id)}
+                      onClick={() =>
+                        setExpandedCase(isExpanded ? null : result.case.id)
+                      }
                       className="w-full flex items-center justify-between p-3 text-left"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-500">#{index + 1}</span>
+                        <span className="text-xs text-slate-500">
+                          #{index + 1}
+                        </span>
                         <Badge
                           variant="outline"
                           className={cn(

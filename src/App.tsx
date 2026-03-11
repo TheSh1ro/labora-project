@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Chat } from '@/components/Chat';
 import { EvaluationDashboard } from '@/components/EvaluationDashboard';
-import { Button } from '@/components/ui/button';
-import { MessageSquare, BarChart3, Github, BookOpen, Coins } from 'lucide-react';
+import {
+  MessageSquare,
+  BarChart3,
+  Github,
+  BookOpen,
+  Coins,
+  ChevronLeft,
+  Gavel,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 
@@ -20,124 +27,178 @@ interface AgentInfo {
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const chatHook = useChat();
   const { sessionUsage } = chatHook;
-  // const hasUsage = sessionUsage.total_tokens > 0;
 
   useEffect(() => {
     fetch(`${API_URL}/agent/info`)
-      .then(res => res.json())
-      .then(data => setAgentInfo(data))
+      .then((res) => res.json())
+      .then((data) => setAgentInfo(data))
       .catch(() => null);
   }, []);
 
   return (
-    <div className="h-screen bg-slate-950 flex flex-col">
-      {/* Navigation */}
-      <nav className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
-              <BookOpen size={16} className="text-white" />
+    <div className="h-screen bg-slate-950 flex overflow-hidden">
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          'flex flex-col bg-slate-900 border-r border-slate-800 transition-all duration-300 ease-in-out flex-shrink-0',
+          sidebarCollapsed ? 'w-[60px]' : 'w-[220px]'
+        )}
+      >
+        {/* Logo */}
+        <div
+          className={cn(
+            'flex items-center gap-3 px-3 py-4 border-b border-slate-800 min-h-[74px]'
+          )}
+        >
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-900/30">
+            <Gavel size={15} className="text-white" />
+          </div>
+          {!sidebarCollapsed && (
+            <div className="overflow-hidden">
+              <span className="text-sm font-semibold text-slate-100 block leading-tight whitespace-nowrap">
+                HomoDeus
+              </span>
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                Challenge 2025
+              </span>
             </div>
-            <span className="text-sm font-semibold text-slate-100">
-              HomoDeus Challenge
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all duration-200',
-                activeTab === 'chat'
-                  ? 'bg-blue-600/20 text-blue-400'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-              )}
-            >
-              <MessageSquare size={14} />
-              Chat
-            </button>
-            <button
-              onClick={() => setActiveTab('evaluation')}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all duration-200',
-                activeTab === 'evaluation'
-                  ? 'bg-emerald-600/20 text-emerald-400'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-              )}
-            >
-              <BarChart3 size={14} />
-              Avaliação
-            </button>
-          </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Nav Items */}
+        <nav className="flex-1 p-2 space-y-1 pt-3">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={cn(
+              'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 group min-h-11',
+              activeTab === 'chat'
+                ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            )}
+            title={sidebarCollapsed ? 'Chat' : undefined}
+          >
+            <MessageSquare size={16} className="flex-shrink-0" />
+            {!sidebarCollapsed && <span>Chat</span>}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('evaluation')}
+            className={cn(
+              'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 group min-h-11',
+              activeTab === 'evaluation'
+                ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            )}
+            title={sidebarCollapsed ? 'Avaliação' : undefined}
+          >
+            <BarChart3 size={16} className="flex-shrink-0" />
+            {!sidebarCollapsed && <span>Avaliação</span>}
+          </button>
+        </nav>
+
+        {/* Bottom section */}
+        <div className="p-2 border-t border-slate-800 space-y-2">
+          {/* Token Usage */}
           <div
             className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-md',
-              'border border-slate-700 bg-slate-800/60',
-              'transition-opacity duration-300',
-              // hasUsage ? 'opacity-100' : 'opacity-40'
+              'flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/20 border border-slate-700/50 h-14'
             )}
+            title={
+              sidebarCollapsed
+                ? `${sessionUsage.total_tokens.toLocaleString()} tokens · $${sessionUsage.estimated_cost_usd.toFixed(4)}`
+                : undefined
+            }
           >
             <Coins size={12} className="text-amber-400 flex-shrink-0" />
-            <div className="flex items-center gap-2 text-[10px]">
-              <span className="text-slate-400">
-                <span className="text-slate-200 font-medium tabular-nums">
-                  {sessionUsage.total_tokens.toLocaleString()}
+            {!sidebarCollapsed && (
+              <div className="flex flex-col text-sm leading-tight min-w-0">
+                <span className="text-slate-200 font-medium tabular-nums truncate">
+                  {sessionUsage.total_tokens.toLocaleString()}{' '}
+                  <span className="text-slate-500 font-normal">
+                    used tokens
+                  </span>
                 </span>
-                {' '}tokens
-              </span>
-              <span className="text-slate-600">·</span>
-              <span className="text-amber-400 font-medium tabular-nums">
-                ${sessionUsage.estimated_cost_usd.toFixed(4)}
-              </span>
-            </div>
+                <span className="text-amber-400 font-medium tabular-nums">
+                  ${sessionUsage.estimated_cost_usd.toFixed(4)}
+                </span>
+              </div>
+            )}
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
+          {/* GitHub */}
+          <button
             onClick={() => window.open('https://github.com', '_blank')}
-            className="text-slate-400 hover:text-slate-200"
+            className={cn(
+              'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all duration-200 min-h-11'
+            )}
+            title={sidebarCollapsed ? 'GitHub' : undefined}
           >
-            <Github size={16} className="mr-1" />
-            GitHub
-          </Button>
-        </div>
-      </nav>
+            <Github size={15} className="flex-shrink-0" />
+            {!sidebarCollapsed && <span>GitHub</span>}
+          </button>
 
-      {/* Main Content — passa o hook ao Chat para partilhar estado */}
-      <main className="flex-1 overflow-hidden">
-        {activeTab === 'chat'
-          ? <Chat chatHook={chatHook} />
-          : <EvaluationDashboard />
-        }
-      </main>
-
-      {/* Footer */}
-      <footer className="px-4 py-2 bg-slate-900 border-t border-slate-800">
-        <div className="flex items-center justify-between text-[10px] text-slate-500">
-          <div className="flex items-center gap-4">
-            <span>Agente Q&A de Direito Laboral Português</span>
-            <span>•</span>
-            <span>HomoDeus Challenge 2025</span>
-          </div>
-          <div className="flex items-center gap-4">
-            {agentInfo ? (
-              <>
-                <span>{agentInfo.provider} · {agentInfo.display_name}</span>
-                <span>•</span>
-              </>
-            ) : null}
-            <span>Tool Calling</span>
-            <span>•</span>
-            <span>Tavily Search</span>
-          </div>
+          {/* Collapse toggle */}
+          <button
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-all duration-200 min-h-11"
+          >
+            <ChevronLeft
+              size={14}
+              className={cn(
+                'flex-shrink-0 transition-transform duration-300',
+                sidebarCollapsed && 'rotate-180'
+              )}
+            />
+            <span
+              className={cn(
+                'overflow-hidden whitespace-nowrap transition-all duration-300',
+                sidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'
+              )}
+            >
+              Recolher
+            </span>
+          </button>
         </div>
-      </footer>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top bar — minimal, just agent info */}
+        <header className="flex items-center justify-between px-5 py-2.5 bg-slate-900/60 border-b border-slate-800 backdrop-blur-sm flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs text-slate-400">
+              {activeTab === 'chat'
+                ? 'Agente Q&A · Direito Laboral Português'
+                : 'Painel de Avaliação'}
+            </span>
+          </div>
+          {agentInfo && (
+            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+              <BookOpen size={10} />
+              <span>
+                {agentInfo.provider} · {agentInfo.display_name}
+              </span>
+              <span className="text-slate-700">·</span>
+              <span>Tool Calling</span>
+              <span className="text-slate-700">·</span>
+              <span>Tavily Search</span>
+            </div>
+          )}
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-hidden">
+          {activeTab === 'chat' ? (
+            <Chat chatHook={chatHook} />
+          ) : (
+            <EvaluationDashboard />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
