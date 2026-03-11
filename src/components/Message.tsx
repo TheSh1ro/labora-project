@@ -60,14 +60,25 @@ export function Message({
       <div className={cn('max-w-[85%]', isUser ? '' : 'flex-1')}>
         <div
           className={cn(
-            'rounded-2xl px-4 py-3',
+            'rounded-2xl px-5 py-4',
             isUser
               ? 'bg-blue-600 text-white rounded-br-md'
               : 'bg-slate-800 text-slate-100 rounded-bl-md border border-slate-700'
           )}
         >
           {isAssistant ? (
-            <div className="prose prose-invert prose-sm max-w-none">
+            <div
+              className="prose prose-invert prose-sm max-w-none
+              prose-p:my-3 prose-p:leading-7 prose-p:first:mt-0 prose-p:last:mb-0
+              prose-headings:font-semibold prose-headings:text-slate-100
+              prose-h2:text-base prose-h2:mt-6 prose-h2:mb-2
+              prose-h3:text-sm prose-h3:mt-5 prose-h3:mb-2
+              prose-ul:my-3 prose-ul:space-y-1.5 prose-ol:my-3 prose-ol:space-y-1.5
+              prose-li:leading-6
+              prose-blockquote:border-l-2 prose-blockquote:border-slate-500 prose-blockquote:pl-4 prose-blockquote:not-italic prose-blockquote:text-slate-300 prose-blockquote:my-4
+              prose-hr:border-slate-700 prose-hr:my-4
+            "
+            >
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -118,7 +129,7 @@ export function Message({
 
         {/* Per-message metadata: ToolCalls + Sources + Copy Log */}
         {hasMetadata && (
-          <div className="mt-1">
+          <div className="mt-3">
             <ToolCallDisplay toolCalls={toolCalls ?? []} />
             <SourcesPanel sources={sources ?? []} responseTime={responseTime} />
 

@@ -34,12 +34,12 @@ export function ToolCallDisplay({ toolCalls }: ToolCallProps) {
 
   return (
     <div className="mt-4 space-y-2">
-      <div className="flex items-center gap-2 text-xs text-slate-400 mb-2">
+      <div className="flex items-center gap-2 text-xs text-slate-400 mb-3">
         <Wrench size={12} />
         <span>Tools executadas ({toolCalls.length})</span>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {toolCalls.map((tool, index) => {
           const isExpanded = expandedIndex === index;
           const hasError = !!tool.error;
@@ -58,7 +58,7 @@ export function ToolCallDisplay({ toolCalls }: ToolCallProps) {
             >
               <button
                 onClick={() => setExpandedIndex(isExpanded ? null : index)}
-                className="w-full flex items-center justify-between p-2.5 text-left"
+                className="w-full flex items-center justify-between p-3 text-left"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm">{getToolIcon(tool.name)}</span>
@@ -79,8 +79,8 @@ export function ToolCallDisplay({ toolCalls }: ToolCallProps) {
               </button>
 
               {isExpanded && (
-                <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
-                  <div className="space-y-2">
+                <div className="px-3 pb-4 pt-2 border-t border-slate-700/50">
+                  <div className="space-y-3">
                     {hasArguments && (
                       <div>
                         <span className="text-[10px] uppercase tracking-wider text-slate-500">

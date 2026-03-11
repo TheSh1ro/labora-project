@@ -49,7 +49,7 @@ export function SourcesPanel({ sources, responseTime }: SourcesPanelProps) {
 
   return (
     <div className="mt-4 pt-4 border-t border-slate-700/50">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <BookOpen size={14} />
           <span>Fontes ({uniqueSources.length})</span>
@@ -61,7 +61,7 @@ export function SourcesPanel({ sources, responseTime }: SourcesPanelProps) {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {uniqueSources.map((source, index) => {
           const title = cleanTitle(source.title);
           const snippet = source.snippet ? cleanSnippet(source.snippet) : null;
@@ -74,7 +74,7 @@ export function SourcesPanel({ sources, responseTime }: SourcesPanelProps) {
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
-                'group flex items-start gap-3 p-3 rounded-lg',
+                'group flex items-start gap-3 p-3.5 rounded-lg',
                 'bg-slate-800/50 border border-slate-700/50',
                 'hover:bg-slate-800 hover:border-slate-600',
                 'transition-all duration-200'

@@ -106,3 +106,79 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ─── Prose spacing fix ────────────────────────────────────────────────────
+   Tailwind Typography prose-sm tem margens muito pequenas e as modifier
+   classes (prose-p:my-3 etc.) são frequentemente ignoradas pelo JIT quando
+   estão em strings multi-linha. Este bloco sobrescreve directamente.
+───────────────────────────────────────────────────────────────────────── */
+
+.prose p {
+  margin-top: 0.85rem !important;
+  margin-bottom: 0.85rem !important;
+  line-height: 1.25 !important;
+}
+.prose p:first-child {
+  margin-top: 0 !important;
+}
+.prose p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.prose h2 {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+.prose h3 {
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.4rem !important;
+}
+
+.prose ul,
+.prose ol {
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+  padding-left: 1.5rem !important;
+}
+.prose li {
+  margin-top: 0.3rem !important;
+  margin-bottom: 0.3rem !important;
+  line-height: 1.6 !important;
+  list-style-type: disc;
+}
+.prose li:first-child { margin-top: 0 !important; }
+.prose li:last-child  { margin-bottom: 0 !important; }
+
+.prose blockquote {
+  border-left: 2px solid rgb(100 116 139 / 0.6);
+  padding-left: 1rem;
+  margin: 1rem 0 !important;
+  color: rgb(148 163 184);
+  font-style: normal !important;
+}
+.prose blockquote p {
+  margin: 0.25rem 0 !important;
+}
+
+.prose hr {
+  border-color: rgb(51 65 85 / 0.5);
+  margin: 1rem 0 !important;
+}
+
+.prose code {
+  font-size: 0.8rem !important;
+}
+
+/* ─── Corrige markdown com \n simples ──────────────────────────────────────
+   react-markdown às vezes renderiza quebras de linha como <br> dentro de <p>.
+   Garante que mesmo assim há respiro.
+───────────────────────────────────────────────────────────────────────── */
+.prose br {
+  display: block;
+  margin-bottom: 0.5rem;
+  content: "";
+}
