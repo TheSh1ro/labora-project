@@ -128,11 +128,20 @@ TEST_CASES: List[EvaluationCase] = [
 
 def _normalize(text: str) -> str:
     """
-    Normaliza separadores decimais e de milhar para comparação de tópicos.
-    Ex: "1.500 €" -> "1500 €", "23,75%" -> "23.75%"
+    Normaliza separadores decimais, de milhar e símbolo de moeda para
+    comparação de tópicos.
+
+    Transformações aplicadas (por ordem):
+      1. "1.500" → "1500"   (separador de milhar com ponto)
+      2. "23,75" → "23.75"  (separador decimal com vírgula)
+      3. "€1800" → "1800"   (€ prefixo colado ao número)
+      4. "1800€" → "1800"   (€ sufixo colado ao número)
+      5. "1800 €" → "1800"  (€ com espaço / non-breaking space)
     """
-    text = re.sub(r"(\d)\.(\d{3})", r"\1\2", text)
-    text = re.sub(r"(\d),(\d)", r"\1.\2", text)
+    text = re.sub(r"(\d)\.(\d{3})", r"\1\2", text)  # milhar ponto
+    text = re.sub(r"(\d),(\d)", r"\1.\2", text)  # decimal vírgula
+    text = re.sub(r"€\s*(\d)", r"\1", text)  # € antes do número
+    text = re.sub(r"(\d)\s*€", r"\1", text)  # € depois do número
     return text
 
 
