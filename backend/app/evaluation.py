@@ -160,7 +160,7 @@ class EvaluationHarness:
         citation = self._evaluate_citations(response.sources, case.requires_citation)
 
         # Avalia recusa graciosa
-        refusal = self._evaluate_refusal(response.message.content)
+        refusal = self._evaluate_refusal(response.message.content, case)
 
         return EvaluationResult(
             case=case,
@@ -214,16 +214,21 @@ class EvaluationHarness:
         else:
             return 0.3
 
-    def _evaluate_refusal(self, response: str) -> float:
+    def _evaluate_refusal(self, response: str, case: "EvaluationCase") -> float:
         """
-        Avalia se o agente recusou graciosamente quando apropriado.
+        Avalia comportamento apropriado face à pergunta:
+        - Casos "limite": pontuação alta se o agente recusar ou adicionar caveats epistémicos.
+        - Outros casos: pontuação alta se o agente responder com base legal fundamentada.
+
+        A lógica anterior penalizava respostas corretas (com "artigo", "lei") e premiava
+        recusas indiscriminadas — o inverso do comportamento desejado para casos normais.
 
         Returns:
             Score entre 0 e 1
         """
         response_lower = response.lower()
 
-        # Indicadores de recusa graciosa
+        # Indicadores de recusa ou incerteza epistémica
         refusal_indicators = [
             "não tenho certeza",
             "não posso confirmar",
@@ -232,31 +237,46 @@ class EvaluationHarness:
             "aconselho a consultar",
             "fora do meu âmbito",
             "não posso ajudar",
+            "advogado",
+            "jurista",
         ]
 
-        # Indicadores de resposta válida
-        valid_indicators = [
+        # Indicadores de resposta fundamentada em base legal
+        grounded_indicators = [
             "segundo",
             "de acordo",
             "conforme",
             "artigo",
             "código",
             "lei",
+            "portaria",
+            "decreto",
         ]
 
         has_refusal = any(ind in response_lower for ind in refusal_indicators)
-        has_valid = any(ind in response_lower for ind in valid_indicators)
+        has_grounded = any(ind in response_lower for ind in grounded_indicators)
 
-        # Se tem recusa e não tem validação, é recusa graciosa
-        if has_refusal and not has_valid:
-            return 1.0
-
-        # Se tem validação, não é recusa
-        if has_valid:
-            return 0.0  # Não recusou
-
-        # Caso neutro
-        return 0.5
+        if case.category == "limite":
+            # Para casos limite: esperamos recusa ou caveats com recomendação de especialista.
+            if has_refusal:
+                return 1.0
+            elif has_grounded:
+                # Respondeu com base legal mas sem humildade epistémica — parcialmente aceitável.
+                return 0.5
+            else:
+                return 0.2
+        else:
+            # Para casos normais: esperamos resposta fundamentada, não recusa.
+            if has_grounded and not has_refusal:
+                return 1.0
+            elif has_grounded and has_refusal:
+                # Respondeu com base legal mas com incerteza excessiva — ok, não ideal.
+                return 0.7
+            elif has_refusal and not has_grounded:
+                # Recusou quando não devia — falha.
+                return 0.0
+            else:
+                return 0.4
 
     def _calculate_summary(self, results: List[EvaluationResult]) -> EvaluationSummary:
         """Calcula métricas agregadas da avaliação."""
