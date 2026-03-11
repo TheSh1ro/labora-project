@@ -20,6 +20,66 @@ from groq import AsyncGroq
 from .tools import TOOLS_SCHEMA, TOOL_FUNCTIONS
 from .models import Message, Source, ToolCallInfo, ChatResponse, TokenUsage
 
+# ---------------------------------------------------------------------------
+# Kimi K2 inline tool-call parser
+# ---------------------------------------------------------------------------
+# Kimi K2 on Groq sometimes emits tool calls as raw special tokens inside
+# message.content instead of populating the structured tool_calls field.
+# Format: `tool_name:INDEX<|tool_call_argument_begin|>{...}<|tool_call_end|>`
+# We detect and parse this so the agent loop can handle them normally.
+# ---------------------------------------------------------------------------
+import re as _re
+from dataclasses import dataclass, field as _field
+
+
+@dataclass
+class _FakeFunction:
+    name: str
+    arguments: str
+
+
+@dataclass
+class _FakeToolCall:
+    id: str
+    function: _FakeFunction
+
+
+_KIMI_TOOL_RE = _re.compile(
+    r"(\w+):\d+<\|tool_call_argument_begin\|>(.*?)<\|tool_call_end\|>",
+    _re.DOTALL,
+)
+
+
+def _parse_kimi_inline_tool_calls(content: str) -> List["_FakeToolCall"]:
+    """
+    Parses Kimi K2 special-token tool calls from message.content.
+    Returns a list of synthetic tool call objects compatible with the agent loop.
+    Returns an empty list if no inline tool calls are found.
+    """
+    if "<|tool_call_argument_begin|>" not in (content or ""):
+        return []
+
+    calls = []
+    for match in _KIMI_TOOL_RE.finditer(content):
+        tool_name = match.group(1)
+        raw_args = match.group(2).strip()
+        # Validate it's a known tool before treating it as a tool call
+        if tool_name not in TOOL_FUNCTIONS:
+            continue
+        # Ensure arguments are valid JSON; fall back to empty object
+        try:
+            json.loads(raw_args)
+        except json.JSONDecodeError:
+            raw_args = "{}"
+        calls.append(
+            _FakeToolCall(
+                id=f"kimi-inline-{uuid.uuid4().hex[:8]}",
+                function=_FakeFunction(name=tool_name, arguments=raw_args),
+            )
+        )
+    return calls
+
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -64,13 +124,31 @@ AGENT_CONFIG = {
 # System prompt (versão otimizada - tokens reduzidos)
 SYSTEM_PROMPT = """És um especialista em Direito Laboral Português. Respondes apenas sobre direito laboral e processamento salarial em Portugal.
 
-REGRAS:
-- Usa SEMPRE as tools disponíveis antes de responder — nunca respondas de memória
+TOOLS OBRIGATÓRIAS — chama SEMPRE a tool correspondente antes de responder. Nunca respondas de memória.
+
+| Tópico da pergunta | Tool a chamar |
+|---|---|
+| Férias, aviso prévio, despedimento, lay-off, não concorrência, teletrabalho, contratos | `search_labor_law` |
+| Subsídio de férias com valor monetário concreto | `calculate_vacation_subsidy` |
+| Subsídio de Natal com valor monetário concreto | `calculate_christmas_subsidy` |
+| TSU / contribuições — decomposição em EUR ou % | `calculate_tsu` |
+| TSU / contribuições — regimes especiais, isenções, legislação | `search_social_security` |
+| IRS / retenção na fonte | `search_irs_tables` |
+| Salário mínimo | `get_minimum_wage` |
+
+Regra absoluta: nunca respondas sobre direito laboral ou processamento salarial sem chamar pelo menos uma tool.
+
+OUTRAS REGRAS:
 - Mostra fórmulas e passo a passo em cálculos
 - Termina com secção "Fontes" com URLs das fontes consultadas
 - Responde em português europeu
 - Se não tiveres certeza, recusa graciosamente e recomenda consultar advogado
 - Recusa questões fora do âmbito laboral português
+
+PROFUNDIDADE MÍNIMA OBRIGATÓRIA:
+- Cálculos (subsídios, TSU, IRS, líquido): mostra SEMPRE o breakdown completo — bruto → cada desconto → líquido; nunca dás só o valor final
+- Questões jurídicas complexas (teletrabalho internacional, não concorrência, lay-off): cobre SEMPRE base legal, condições de aplicação, excepções relevantes e recomendação de consultar especialista
+- Nunca respondas com menos de 3 parágrafos a questões das categorias acima
 
 FORMATO:
 - Usa headers (##) para separar secções com mais de 2 tópicos
@@ -113,7 +191,18 @@ _TOPIC_KEYWORDS: Dict[str, List[str]] = {
         "justa causa",
     ],
     "layoff": ["lay-off", "layoff", "suspensão", "suspensao"],
-    "teletrabalho": ["teletrabalho", "remoto", "trabalho à distância"],
+    "teletrabalho": [
+        "teletrabalho",
+        "remoto",
+        "trabalho à distância",
+        "trabalha remotamente",
+        "trabalhar remotamente",
+        "trabalha a partir de",
+        "trabalhar a partir de",
+        "outro país",
+        "espanha",
+        "internacional",
+    ],
     "nao_concorrencia": ["não concorrência", "nao concorrencia", "concorrência"],
     "contrato": ["contrato", "termo certo", "sem termo", "permanente", "temporário"],
 }
@@ -290,8 +379,11 @@ class LaborLawAgent:
         self.model = MODEL
         self.tools = TOOLS_SCHEMA
         self.tool_functions = TOOL_FUNCTIONS
+        # Token counters — persistem até reinício do servidor
         self._session_prompt_tokens = 0
         self._session_completion_tokens = 0
+        # Histórico da conversa activa — limpo por reset_session()
+        self._session_messages: List[Message] = []
 
     def _calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
         return round(
@@ -311,9 +403,13 @@ class LaborLawAgent:
             ),
         )
 
-    def reset_session_usage(self) -> None:
-        self._session_prompt_tokens = 0
-        self._session_completion_tokens = 0
+    def reset_session(self) -> None:
+        """Limpa o histórico da conversa activa. Os contadores de tokens NÃO são reiniciados."""
+        cleared = len(self._session_messages)
+        self._session_messages = []
+        logging.info(
+            f"[session] reset — {cleared} mensagens removidas; tokens acumulados mantidos"
+        )
 
     def _write_log(self, log: Dict[str, Any]) -> None:
         """Persiste o wide event em arquivo JSON e imprime resumo no stdout."""
@@ -349,7 +445,7 @@ class LaborLawAgent:
             logging.warning(f"Falha ao escrever log: {e}")
 
     async def chat(
-        self, messages: List[Message], stream: bool = False
+        self, user_message: Message, stream: bool = False
     ) -> ChatResponse:  # stream: not yet implemented
         start_time = time.time()
         request_id = str(uuid.uuid4())[:8]
@@ -357,10 +453,13 @@ class LaborLawAgent:
         call_prompt_tokens = 0
         call_completion_tokens = 0
 
-        # Trunca o histórico para os últimos MAX_HISTORY_TURNS pares
-        user_turns = sum(1 for m in messages if m.role == "user")
-        original_count = len(messages)
-        messages = _trim_history(messages)
+        # Constrói contexto completo: histórico da sessão + nova mensagem do utilizador
+        session_count = len(self._session_messages)
+        all_messages = self._session_messages + [user_message]
+
+        # Trunca ao limite de MAX_HISTORY_TURNS pares
+        original_count = len(all_messages)
+        messages = _trim_history(all_messages)
         trimmed_count = original_count - len(messages)
         if trimmed_count > 0:
             logging.info(
@@ -368,9 +467,8 @@ class LaborLawAgent:
                 f"({original_count} → {len(messages)})"
             )
 
-        # Extrai e classifica a mensagem do utilizador
-        user_message = next((m for m in reversed(messages) if m.role == "user"), None)
-        user_text = user_message.content if user_message else ""
+        user_turns = sum(1 for m in messages if m.role == "user")
+        user_text = user_message.content
         question_meta = _classify_question(user_text)
 
         # --- Wide event: construído progressivamente, emitido uma vez no final ---
@@ -384,7 +482,7 @@ class LaborLawAgent:
             # Configuração da chamada ao LLM
             "config": {
                 "temperature": 0,
-                "max_tokens": 1200,
+                "max_tokens": 1800,
                 "max_iterations": AGENT_CONFIG["max_iterations"],
                 "tool_choice": "auto",
                 "parallel_tool_calls": False,
@@ -392,10 +490,11 @@ class LaborLawAgent:
             "input": {
                 "message": user_text,
                 **question_meta,
-                # Turno actual do utilizador nesta conversa (antes do trim)
+                # Turno actual do utilizador nesta conversa
                 "conversation_turn": user_turns,
-                # Contagem original (antes do trim) e efectiva (após trim)
-                "history_messages_received": original_count - 1,
+                # Mensagens em sessão antes deste pedido (histórico servidor)
+                "session_messages_before": session_count,
+                # Mensagens enviadas ao LLM após trim (excluindo a actual do utilizador)
                 "history_messages_sent": len(messages) - 1,
                 "history_trimmed": trimmed_count,
                 # Contagem de mensagens por papel para perceber o contexto enviado
@@ -473,7 +572,7 @@ class LaborLawAgent:
                         tool_choice="auto",
                         parallel_tool_calls=False,
                         temperature=0,
-                        max_tokens=1200,
+                        max_tokens=1800,
                     )
                 except Exception as api_err:
                     if "tool_use_failed" in str(api_err) or "400" in str(api_err):
@@ -483,7 +582,7 @@ class LaborLawAgent:
                             model=self.model,
                             messages=openai_messages,
                             temperature=0,
-                            max_tokens=1200,
+                            max_tokens=1800,
                         )
                     else:
                         raise api_err
@@ -513,8 +612,23 @@ class LaborLawAgent:
                     :300
                 ] or None
 
+                # --- Kimi K2 fallback: detect inline special-token tool calls ---
+                # The model sometimes emits tool calls as raw tokens in content
+                # instead of populating message.tool_calls. Parse and inject them.
+                effective_tool_calls = message.tool_calls
+                if not effective_tool_calls:
+                    inline_calls = _parse_kimi_inline_tool_calls(message.content or "")
+                    if inline_calls:
+                        effective_tool_calls = inline_calls
+                        iter_log["fallback_used"] = True
+                        iter_log["fallback_reason"] = "kimi_inline_tool_calls"
+                        logging.info(
+                            f"[{request_id}] Kimi inline tool calls detected: "
+                            f"{[c.function.name for c in inline_calls]}"
+                        )
+
                 # --- Resposta final (sem tool calls) ---
-                if not message.tool_calls:
+                if not effective_tool_calls:
                     iter_log["elapsed_ms"] = round((time.time() - iter_start) * 1000)
                     log["iterations"].append(iter_log)
                     log["timing_ms"]["per_iteration"].append(iter_log["elapsed_ms"])
@@ -576,6 +690,12 @@ class LaborLawAgent:
                     log["timing_ms"]["tools_total"] = total_tools_ms
                     self._write_log(log)
 
+                    # Acumula na sessão: histórico trimado (sem a msg actual) + user + assistant
+                    assistant_msg = Message(role="assistant", content=content)
+                    self._session_messages = _trim_history(
+                        list(messages[:-1]) + [user_message, assistant_msg]
+                    )
+
                     return ChatResponse(
                         message=Message(role="assistant", content=content),
                         sources=all_sources,
@@ -590,11 +710,25 @@ class LaborLawAgent:
                     {
                         "role": "assistant",
                         "content": message.content or "",
-                        "tool_calls": [tc.model_dump() for tc in message.tool_calls],
+                        "tool_calls": [
+                            (
+                                tc.model_dump()
+                                if hasattr(tc, "model_dump")
+                                else {
+                                    "id": tc.id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.function.name,
+                                        "arguments": tc.function.arguments,
+                                    },
+                                }
+                            )
+                            for tc in effective_tool_calls
+                        ],
                     }
                 )
 
-                for tool_call in message.tool_calls:
+                for tool_call in effective_tool_calls:
                     function_name = tool_call.function.name
                     function_args = (
                         json.loads(tool_call.function.arguments or "{}") or {}
