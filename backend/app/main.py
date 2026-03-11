@@ -4,7 +4,9 @@
 FastAPI Backend - Agente Q&A de Direito Laboral Português
 """
 
+import json
 import os
+from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
@@ -188,6 +190,39 @@ async def list_sources():
             },
         ]
     }
+
+
+@app.get("/logs")
+async def list_logs():
+    """Lista os logs de execução disponíveis."""
+    logs_dir = Path(__file__).parent.parent / "logs"
+    if not logs_dir.exists():
+        return {"logs": []}
+    files = sorted(logs_dir.glob("*.json"), reverse=True)[:50]  # últimos 50
+    return {
+        "logs": [f.stem for f in files],
+        "count": len(files),
+        "logs_dir": str(logs_dir),
+    }
+
+
+@app.get("/logs/{request_id}")
+async def get_log(request_id: str):
+    logs_dir = Path(__file__).parent.parent / "logs"
+    matches = list(logs_dir.glob(f"*{request_id}*.json"))
+    if not matches:
+        raise HTTPException(
+            status_code=404, detail=f"Log '{request_id}' não encontrado"
+        )
+    with open(matches[0], encoding="utf-8") as f:
+        return json.load(f)
+
+
+@app.delete("/logs")
+async def clear_logs():
+    logs_dir = Path(__file__).parent.parent / "logs"
+    count = sum(1 for f in logs_dir.glob("*.json") if f.unlink() or True)
+    return {"deleted": count}
 
 
 if __name__ == "__main__":
