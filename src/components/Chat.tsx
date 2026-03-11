@@ -1,5 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Trash2, Sparkles } from 'lucide-react';
+import {
+  Send,
+  Trash2,
+  Sparkles,
+  ClipboardCopy,
+  ClipboardCheck,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useChat } from '@/hooks/useChat';
@@ -22,6 +28,7 @@ interface ChatProps {
 
 export function Chat({ chatHook }: ChatProps) {
   const [input, setInput] = useState('');
+  const [copied, setCopied] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -32,6 +39,7 @@ export function Chat({ chatHook }: ChatProps) {
     error,
     lastSources,
     lastToolCalls,
+    lastExecutionLog,
     responseTime,
     sendMessage,
     clearChat,
@@ -46,6 +54,15 @@ export function Chat({ chatHook }: ChatProps) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  const handleCopyLog = async () => {
+    if (!lastExecutionLog) return;
+    await navigator.clipboard.writeText(
+      JSON.stringify(lastExecutionLog, null, 2)
+    );
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -162,7 +179,25 @@ export function Chat({ chatHook }: ChatProps) {
       <div className="flex-shrink-0 border-t border-slate-800 bg-slate-900/40 backdrop-blur-sm py-4 px-4">
         <div className="w-full max-w-[720px] min-w-[320px] mx-auto">
           {messages.length > 0 && (
-            <div className="flex justify-end mb-2">
+            <div className="flex justify-end items-center gap-3 mb-2">
+              {lastExecutionLog && (
+                <button
+                  onClick={handleCopyLog}
+                  className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-blue-400 transition-colors"
+                >
+                  {copied ? (
+                    <>
+                      <ClipboardCheck size={11} />
+                      <span className="text-blue-400">Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardCopy size={11} />
+                      Copiar logs
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 onClick={clearChat}
                 className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-red-400 transition-colors"

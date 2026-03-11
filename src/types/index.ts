@@ -45,6 +45,7 @@ export interface ChatResponse {
   tool_calls: ToolCallInfo[];
   response_time_ms: number;
   usage: TokenUsage;
+  execution_log?: Record<string, unknown> | null;
 }
 
 export interface ChatRequest {
@@ -79,12 +80,15 @@ export interface EvaluationSummary {
   avg_citation: number;
   avg_refusal: number;
   avg_response_time_ms: number;
-  results_by_category: Record<string, {
-    count: number;
-    avg_correctness: number;
-    avg_citation: number;
-    avg_response_time_ms: number;
-  }>;
+  results_by_category: Record<
+    string,
+    {
+      count: number;
+      avg_correctness: number;
+      avg_citation: number;
+      avg_response_time_ms: number;
+    }
+  >;
   detailed_results: EvaluationResult[];
   timestamp: string;
 }
