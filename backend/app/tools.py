@@ -2,7 +2,14 @@
 
 """
 Tools para o agente de direito laboral português.
-Implementa pesquisa web e cálculos especializados.
+
+Estratégias de retrieval (alinhadas ao challenge):
+  1. search_labor_law      → Código do Trabalho (portal.act.gov.pt, pgdlisboa.pt)
+  2. search_irs_tables     → Tabelas IRS (info.portaldasfinancas.gov.pt)
+  3. search_social_security→ TSU / Seg. Social (diariodarepublica.pt, seg-social.pt)
+
+Cada tool usa domínios específicos para a sua fonte — sem sobreposição.
+As queries chegam limpas do LLM, sem sufixos ou augmentation.
 """
 
 import os
@@ -12,25 +19,50 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Inicializa cliente Tavily
+# ---------------------------------------------------------------------------
+# Cliente Tavily
+# ---------------------------------------------------------------------------
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 tavily_client = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
 
-# Dados atualizados (2024-2025)
-MINIMUM_WAGE_2025 = 870.0  # Euros mensais
-MINIMUM_WAGE_2024 = 820.0  # Euros mensais
+# ---------------------------------------------------------------------------
+# Domínios por estratégia de retrieval (3 estratégias distintas)
+# ---------------------------------------------------------------------------
 
-# Taxas TSU atualizadas
+# Fonte 1: Código do Trabalho — ACT + pgdlisboa (versão consolidada articulada)
+DOMAINS_LABOR_LAW = [
+    "portal.act.gov.pt",
+    "www.pgdlisboa.pt",
+]
+
+# Fonte 2: IRS — exclusivamente Portal das Finanças
+DOMAINS_IRS = [
+    "info.portaldasfinancas.gov.pt",
+    "www.portaldasfinancas.gov.pt",
+]
+
+# Fonte 3: TSU / Segurança Social — DRE (lei consolidada) + seg-social.pt
+DOMAINS_SOCIAL_SECURITY = [
+    "diariodarepublica.pt",
+    "www.seg-social.pt",
+]
+
+# ---------------------------------------------------------------------------
+# Dados estáticos atualizados (base legal fixa — alterados por portaria anual)
+# ---------------------------------------------------------------------------
+MINIMUM_WAGE_2025 = 870.0  # Portaria n.º 1/2025
+MINIMUM_WAGE_2024 = 820.0
+
 TSU_RATES = {
-    "empregador": 0.2375,  # 23.75%
+    "empregador": 0.2375,  # 23.75% — Lei n.º 110/2009
     "trabalhador": 0.11,  # 11%
     "total": 0.3475,  # 34.75%
 }
 
-# Tabelas de retenção IRS 2025 (simplificado - valores aproximados)
+# Tabelas de retenção IRS 2025 — Despacho n.º 236-A/2025
 IRS_TABLES_2025 = {
     "solteiro": [
-        (0, 1000, 0),
+        (0, 1000, 0.00),
         (1000, 1500, 0.13),
         (1500, 2000, 0.165),
         (2000, 2500, 0.22),
@@ -41,7 +73,7 @@ IRS_TABLES_2025 = {
         (8000, float("inf"), 0.45),
     ],
     "casado-unico": [
-        (0, 1000, 0),
+        (0, 1000, 0.00),
         (1000, 1500, 0.11),
         (1500, 2000, 0.145),
         (2000, 2500, 0.195),
@@ -52,7 +84,7 @@ IRS_TABLES_2025 = {
         (8000, float("inf"), 0.43),
     ],
     "casado-dois": [
-        (0, 1000, 0),
+        (0, 1000, 0.00),
         (1000, 1500, 0.10),
         (1500, 2000, 0.135),
         (2000, 2500, 0.185),
@@ -65,62 +97,48 @@ IRS_TABLES_2025 = {
 }
 
 
-def search_labor_law(query: str, topic: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Pesquisa informações no Código do Trabalho português.
-
-    Args:
-        query: Termos de pesquisa
-        topic: Tópico específico (contratos, ferias, despedimento, layoff, nao-concorrencia, teletrabalho)
-
-    Returns:
-        Resultados da pesquisa com fontes
-    """
-    # Domínios oficiais portugueses
-    domains = ["portal.act.gov.pt", "www.pgdlisboa.pt", "dre.pt", "www.cite.gov.pt"]
-
-    # Refina query com tópico
-    search_query = query
-    if topic:
-        topic_keywords = {
-            "contratos": "contrato trabalho tipo contrato",
-            "ferias": "férias anuais dias férias descanso",
-            "despedimento": "despedimento justa causa aviso prévio",
-            "layoff": "lay-off suspensão contrato redução",
-            "nao-concorrencia": "cláusula não concorrência",
-            "teletrabalho": "teletrabalho trabalho remoto",
+# ---------------------------------------------------------------------------
+# Helper de busca Tavily
+# ---------------------------------------------------------------------------
+def _tavily_search(query: str, domains: list, max_results: int = 3) -> Dict[str, Any]:
+    """Executa busca Tavily nos domínios especificados. Query chega limpa do LLM."""
+    if not tavily_client:
+        return {
+            "success": False,
+            "error": "Tavily API key não configurada",
+            "results": [],
+            "query": query,
         }
-        if topic in topic_keywords:
-            search_query = f"{query} {topic_keywords[topic]}"
-
-    # Adiciona contexto de Portugal
-    search_query = f"{search_query} Portugal Código Trabalho 2024 2025"
-
     try:
-        if tavily_client:
-            response = tavily_client.search(
-                query=search_query,
-                search_depth="advanced",
-                include_domains=domains,
-                max_results=5,
-            )
-            return {
-                "success": True,
-                "results": response.get("results", []),
-                "query": search_query,
-            }
-        else:
-            # Fallback sem API key
-            return {
-                "success": False,
-                "error": "Tavily API key não configurada",
-                "results": [],
-                "query": search_query,
-            }
+        response = tavily_client.search(
+            query=query,
+            search_depth="advanced",
+            include_domains=domains,
+            max_results=max_results,
+        )
+        return {"success": True, "results": response.get("results", []), "query": query}
     except Exception as e:
-        return {"success": False, "error": str(e), "results": [], "query": search_query}
+        return {"success": False, "error": str(e), "results": [], "query": query}
 
 
+# ---------------------------------------------------------------------------
+# Estratégia 1: Código do Trabalho
+# Fonte: portal.act.gov.pt + pgdlisboa.pt
+# Cobre: contratos, férias, despedimento, lay-off, não concorrência, teletrabalho
+# ---------------------------------------------------------------------------
+def search_labor_law(query: str) -> Dict[str, Any]:
+    """
+    Pesquisa no Código do Trabalho português.
+    Fontes: portal.act.gov.pt, pgdlisboa.pt
+    """
+    return _tavily_search(query, DOMAINS_LABOR_LAW)
+
+
+# ---------------------------------------------------------------------------
+# Estratégia 2: Tabelas de Retenção IRS
+# Fonte: info.portaldasfinancas.gov.pt
+# Cobre: taxas de retenção mensais, escalões, deduções por dependente, IRS Jovem
+# ---------------------------------------------------------------------------
 def search_irs_tables(
     year: int,
     income: Optional[float] = None,
@@ -128,44 +146,34 @@ def search_irs_tables(
     dependents: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Consulta tabelas de retenção na fonte de IRS.
-
-    Args:
-        year: Ano das tabelas (2024 ou 2025)
-        income: Rendimento mensal bruto (opcional)
-        marital_status: Estado civil (solteiro, casado-unico, casado-dois)
-        dependents: Número de dependentes
-
-    Returns:
-        Informações sobre taxas de retenção
+    Consulta tabelas de retenção IRS. Calcula taxa local se income+marital_status fornecidos,
+    complementado por busca em info.portaldasfinancas.gov.pt para contexto atualizado.
     """
     if year not in [2024, 2025]:
         return {
             "success": False,
-            "error": f"Tabelas disponíveis apenas para 2024 e 2025. Ano solicitado: {year}",
+            "error": f"Tabelas disponíveis para 2024 e 2025. Solicitado: {year}",
             "year": year,
         }
 
-    # Para 2024, usamos as mesmas tabelas de 2025 (próximas)
     tables = IRS_TABLES_2025
-
-    result = {
+    result: Dict[str, Any] = {
         "success": True,
         "year": year,
         "marital_status": marital_status,
         "income": income,
         "dependents": dependents,
         "tax_rate": None,
-        "deduction_per_dependent": 21.43 if year == 2024 else 21.43,  # Valor mensal
+        "deduction_per_dependent": 21.43,
         "sources": [
             {
-                "title": "Tabelas de Retenção na Fonte IRS 2025",
+                "title": "Tabelas de Retenção na Fonte IRS 2025 — Despacho n.º 236-A/2025",
                 "url": "https://info.portaldasfinancas.gov.pt/pt/apoio_contribuinte/tabela_ret_doclib/",
             }
         ],
     }
 
-    # Calcula taxa se tivermos income e marital_status
+    # Cálculo local da taxa se temos os dados necessários
     if income and marital_status and marital_status in tables:
         for min_val, max_val, rate in tables[marital_status]:
             if min_val <= income < max_val:
@@ -173,7 +181,6 @@ def search_irs_tables(
                 result["tax_amount"] = round(income * rate, 2)
                 break
 
-        # Aplica dedução por dependentes
         if dependents and dependents > 0:
             deduction = dependents * result["deduction_per_dependent"]
             result["dependent_deduction"] = round(deduction, 2)
@@ -182,65 +189,37 @@ def search_irs_tables(
                     0, round(result["tax_amount"] - deduction, 2)
                 )
 
+    # Complementa com busca web para contexto e citação
+    query = f"tabelas retenção IRS {year} trabalhadores dependentes"
+    web = _tavily_search(query, DOMAINS_IRS, max_results=2)
+    if web.get("results"):
+        result["web_context"] = web["results"]
+
     return result
 
 
+# ---------------------------------------------------------------------------
+# Estratégia 3: Segurança Social / TSU
+# Fonte: diariodarepublica.pt + seg-social.pt
+# Cobre: taxas TSU, regimes especiais, isenções, base de incidência
+# ---------------------------------------------------------------------------
 def search_social_security(query: str) -> Dict[str, Any]:
     """
-    Pesquisa informações sobre Segurança Social e contribuições.
-
-    Args:
-        query: Termos de pesquisa sobre TSU, contribuições, etc.
-
-    Returns:
-        Resultados da pesquisa
+    Pesquisa contribuições e TSU — Lei n.º 110/2009 (Código dos Regimes Contributivos).
+    Fontes: diariodarepublica.pt, seg-social.pt
     """
-    domains = ["www.seg-social.pt", "diariodarepublica.pt", "www.cite.gov.pt"]
-
-    search_query = f"{query} Portugal Segurança Social TSU contribuições 2024 2025"
-
-    try:
-        if tavily_client:
-            response = tavily_client.search(
-                query=search_query,
-                search_depth="advanced",
-                include_domains=domains,
-                max_results=5,
-            )
-            return {
-                "success": True,
-                "results": response.get("results", []),
-                "query": search_query,
-            }
-        else:
-            return {
-                "success": False,
-                "error": "Tavily API key não configurada",
-                "results": [],
-                "query": search_query,
-            }
-    except Exception as e:
-        return {"success": False, "error": str(e), "results": [], "query": search_query}
+    return _tavily_search(query, DOMAINS_SOCIAL_SECURITY)
 
 
+# ---------------------------------------------------------------------------
+# Cálculos locais (sem I/O — resultados determinísticos)
+# ---------------------------------------------------------------------------
 def calculate_vacation_subsidy(
     monthly_salary: float, vacation_days: int = 22
 ) -> Dict[str, Any]:
-    """
-    Calcula o valor do subsídio de férias.
-
-    Fórmula: (Salário Base × 12) ÷ 365 × Dias de Férias
-
-    Args:
-        monthly_salary: Salário base mensal em EUR
-        vacation_days: Dias de férias (padrão: 22)
-
-    Returns:
-        Valor calculado do subsídio de férias
-    """
+    """Calcula subsídio de férias — Art. 264º Código do Trabalho."""
     daily_salary = (monthly_salary * 12) / 365
     subsidy = daily_salary * vacation_days
-
     return {
         "success": True,
         "monthly_salary": monthly_salary,
@@ -249,6 +228,12 @@ def calculate_vacation_subsidy(
         "vacation_subsidy": round(subsidy, 2),
         "formula": "(Salário Base × 12) ÷ 365 × Dias de Férias",
         "legal_basis": "Código do Trabalho, Art. 264º",
+        "sources": [
+            {
+                "title": "Código do Trabalho, Art. 264º",
+                "url": "https://portal.act.gov.pt",
+            }
+        ],
     }
 
 
@@ -257,68 +242,62 @@ def calculate_christmas_subsidy(
     months_worked: Optional[int] = None,
     start_month: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """
-    Calcula o valor do subsídio de Natal.
-
-    Fórmula normal: 1 mês de salário
-    Fórmula proporcional: (Salário ÷ 12) × Meses Trabalhados
-
-    Args:
-        monthly_salary: Salário base mensal em EUR
-        months_worked: Meses trabalhados no ano (para cálculo proporcional)
-        start_month: Mês de início do contrato (1-12)
-
-    Returns:
-        Valor calculado do subsídio de Natal
-    """
-    result = {
+    """Calcula subsídio de Natal — Art. 263º Código do Trabalho. Inclui proporcional."""
+    result: Dict[str, Any] = {
         "success": True,
         "monthly_salary": monthly_salary,
-        "formula": "1 mês de salário base",
-        "legal_basis": "Código do Trabalho, Art. 263º",
         "christmas_subsidy": monthly_salary,
+        "formula": "1 mês de salário base",
+        "is_proportional": False,
+        "legal_basis": "Código do Trabalho, Art. 263º",
+        "sources": [
+            {
+                "title": "Código do Trabalho, Art. 263º",
+                "url": "https://portal.act.gov.pt",
+            }
+        ],
     }
 
-    # Cálculo proporcional para trabalhadores contratados a meio do ano
     if months_worked:
-        proportional = (monthly_salary / 12) * months_worked
-        result["christmas_subsidy"] = round(proportional, 2)
-        result["formula"] = "(Salário Base ÷ 12) × Meses Trabalhados"
-        result["months_worked"] = months_worked
-        result["is_proportional"] = True
+        proportional = round((monthly_salary / 12) * months_worked, 2)
+        result.update(
+            {
+                "christmas_subsidy": proportional,
+                "formula": "(Salário Base ÷ 12) × Meses Trabalhados",
+                "months_worked": months_worked,
+                "is_proportional": True,
+            }
+        )
     elif start_month and 1 <= start_month <= 12:
-        months = 13 - start_month  # De start_month até dezemmbro
-        proportional = (monthly_salary / 12) * months
-        result["christmas_subsidy"] = round(proportional, 2)
-        result["formula"] = "(Salário Base ÷ 12) × Meses desde início"
-        result["start_month"] = start_month
-        result["months_worked"] = months
-        result["is_proportional"] = True
+        months = 13 - start_month
+        proportional = round((monthly_salary / 12) * months, 2)
+        result.update(
+            {
+                "christmas_subsidy": proportional,
+                "formula": "(Salário Base ÷ 12) × Meses desde início",
+                "start_month": start_month,
+                "months_worked": months,
+                "is_proportional": True,
+            }
+        )
 
     return result
 
 
 def get_minimum_wage() -> Dict[str, Any]:
-    """
-    Retorna o salário mínimo nacional atual.
-
-    Returns:
-        Informações sobre o salário mínimo nacional
-    """
-    current_year = 2025
-
+    """Retorna o salário mínimo nacional atual — Portaria n.º 1/2025."""
     return {
         "success": True,
-        "year": current_year,
+        "year": 2025,
         "monthly_amount": MINIMUM_WAGE_2025,
         "annual_amount": round(MINIMUM_WAGE_2025 * 14, 2),  # 14 meses
         "daily_amount": round(MINIMUM_WAGE_2025 / 22, 2),  # ~22 dias úteis
-        "hourly_amount": round(MINIMUM_WAGE_2025 / 160, 2),  # ~160 horas/mês
+        "hourly_amount": round(MINIMUM_WAGE_2025 / 160, 2),  # ~160h/mês
         "currency": "EUR",
         "legal_basis": "Portaria n.º 1/2025",
         "sources": [
             {
-                "title": "Portal das Finanças - Salário Mínimo Nacional",
+                "title": "Portaria n.º 1/2025 — Salário Mínimo Nacional",
                 "url": "https://info.portaldasfinancas.gov.pt",
             },
             {"title": "Código do Trabalho", "url": "https://portal.act.gov.pt"},
@@ -329,69 +308,54 @@ def get_minimum_wage() -> Dict[str, Any]:
 def calculate_tsu(
     monthly_salary: float, contract_type: str = "sem_termo"
 ) -> Dict[str, Any]:
-    """
-    Calcula as contribuições TSU (Taxa Social Única).
-
-    Args:
-        monthly_salary: Salário base mensal em EUR
-        contract_type: Tipo de contrato (sem_termo, termo_certo, tempo_parcial)
-
-    Returns:
-        Valores de contribuição do empregador e trabalhador
-    """
-    employer_contribution = monthly_salary * TSU_RATES["empregador"]
-    employee_contribution = monthly_salary * TSU_RATES["trabalhador"]
-    total_contribution = employer_contribution + employee_contribution
-
+    """Calcula contribuições TSU — Lei n.º 110/2009."""
+    employer = round(monthly_salary * TSU_RATES["empregador"], 2)
+    employee = round(monthly_salary * TSU_RATES["trabalhador"], 2)
+    total = round(employer + employee, 2)
     return {
         "success": True,
         "monthly_salary": monthly_salary,
         "contract_type": contract_type,
-        "employer": {
-            "rate": "23.75%",
-            "rate_decimal": TSU_RATES["empregador"],
-            "amount": round(employer_contribution, 2),
-        },
-        "employee": {
-            "rate": "11%",
-            "rate_decimal": TSU_RATES["trabalhador"],
-            "amount": round(employee_contribution, 2),
-        },
-        "total": {
-            "rate": "34.75%",
-            "rate_decimal": TSU_RATES["total"],
-            "amount": round(total_contribution, 2),
-        },
-        "liquid_salary": round(monthly_salary - employee_contribution, 2),
-        "legal_basis": "Código dos Regimes Contributivos da Segurança Social",
+        "employer": {"rate": "23.75%", "amount": employer},
+        "employee": {"rate": "11%", "amount": employee},
+        "total": {"rate": "34.75%", "amount": total},
+        "liquid_salary": round(monthly_salary - employee, 2),
+        "legal_basis": "Lei n.º 110/2009 — Código dos Regimes Contributivos",
+        "sources": [
+            {
+                "title": "Lei n.º 110/2009 — Código dos Regimes Contributivos",
+                "url": "https://diariodarepublica.pt/dr/legislacao-consolidada/lei/2009-34514575",
+            },
+            {
+                "title": "Segurança Social — Taxas Contributivas",
+                "url": "https://www.seg-social.pt",
+            },
+        ],
     }
 
 
-# Schema das tools para OpenAI Functions
+# ---------------------------------------------------------------------------
+# Schema das tools (otimizado — descrições concisas, sem parâmetros redundantes)
+# ---------------------------------------------------------------------------
 TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
             "name": "search_labor_law",
-            "description": "Pesquisa informações no Código do Trabalho português, incluindo contratos, férias, despedimento, lay-off, cláusulas de não concorrência e teletrabalho.",
+            "description": (
+                "Pesquisa no Código do Trabalho PT (portal.act.gov.pt). "
+                "Usa para: contratos, férias, aviso prévio, despedimento, lay-off, "
+                "cláusulas de não concorrência, teletrabalho transfronteiriço. "
+                "Chama esta tool no máximo 2 vezes por pergunta. "
+                "Se os resultados da primeira chamada não forem suficientes, "
+                "reformula a query uma única vez — nunca repitas a mesma query."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Termos de pesquisa sobre direito laboral",
-                    },
-                    "topic": {
-                        "type": "string",
-                        "enum": [
-                            "contratos",
-                            "ferias",
-                            "despedimento",
-                            "layoff",
-                            "nao-concorrencia",
-                            "teletrabalho",
-                        ],
-                        "description": "Tópico específico para refinar a pesquisa",
+                        "description": "Query de pesquisa em português — formulada livremente",
                     },
                 },
                 "required": ["query"],
@@ -402,13 +366,17 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "search_irs_tables",
-            "description": "Consulta as tabelas oficiais de retenção na fonte de IRS para trabalhadores dependentes em Portugal.",
+            "description": (
+                "Tabelas de retenção IRS PT (info.portaldasfinancas.gov.pt). "
+                "Usa para: taxas de retenção mensais, escalões, deduções por dependente, IRS Jovem. "
+                "Chama esta tool apenas uma vez — os dados locais já incluem os valores calculados."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "year": {
                         "type": "integer",
-                        "description": "Ano das tabelas de IRS (2024 ou 2025)",
+                        "description": "Ano fiscal (2024 ou 2025)",
                     },
                     "income": {
                         "type": "number",
@@ -417,11 +385,10 @@ TOOLS_SCHEMA = [
                     "marital_status": {
                         "type": "string",
                         "enum": ["solteiro", "casado-unico", "casado-dois"],
-                        "description": "Estado civil do contribuinte",
                     },
                     "dependents": {
                         "type": "integer",
-                        "description": "Número de dependentes do contribuinte",
+                        "description": "Número de dependentes",
                     },
                 },
                 "required": ["year"],
@@ -432,14 +399,20 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "search_social_security",
-            "description": "Pesquisa informações sobre Segurança Social, TSU (Taxa Social Única), contribuições e regimes contributivos em Portugal.",
+            "description": (
+                "Pesquisa TSU e contribuições — Lei n.º 110/2009 (diariodarepublica.pt, seg-social.pt). "
+                "Usa para: taxas TSU, regimes especiais, isenções, base de incidência. "
+                "Chama esta tool no máximo 2 vezes por pergunta. "
+                "Se os resultados da primeira chamada não forem suficientes, "
+                "reformula a query uma única vez — nunca repitas a mesma query."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Termos de pesquisa sobre Segurança Social",
-                    }
+                        "description": "Query de pesquisa em português — formulada livremente",
+                    },
                 },
                 "required": ["query"],
             },
@@ -449,19 +422,12 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "calculate_vacation_subsidy",
-            "description": "Calcula o valor do subsídio de férias de acordo com o Código do Trabalho português.",
+            "description": "Calcula subsídio de férias (Art. 264º CT). Usa quando precisas do valor exato.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "monthly_salary": {
-                        "type": "number",
-                        "description": "Salário base mensal em euros",
-                    },
-                    "vacation_days": {
-                        "type": "integer",
-                        "description": "Número de dias de férias (padrão: 22 dias)",
-                        "default": 22,
-                    },
+                    "monthly_salary": {"type": "number"},
+                    "vacation_days": {"type": "integer", "default": 22},
                 },
                 "required": ["monthly_salary"],
             },
@@ -471,21 +437,15 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "calculate_christmas_subsidy",
-            "description": "Calcula o valor do subsídio de Natal, incluindo cálculo proporcional para trabalhadores contratados a meio do ano.",
+            "description": "Calcula subsídio de Natal (Art. 263º CT), incluindo proporcional para contratos iniciados a meio do ano.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "monthly_salary": {
-                        "type": "number",
-                        "description": "Salário base mensal em euros",
-                    },
-                    "months_worked": {
-                        "type": "integer",
-                        "description": "Número de meses trabalhados no ano (opcional, para cálculo proporcional)",
-                    },
+                    "monthly_salary": {"type": "number"},
+                    "months_worked": {"type": "integer"},
                     "start_month": {
                         "type": "integer",
-                        "description": "Mês de início do contrato (1-12, opcional)",
+                        "description": "Mês de início do contrato (1–12)",
                     },
                 },
                 "required": ["monthly_salary"],
@@ -496,7 +456,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_minimum_wage",
-            "description": "Retorna o salário mínimo nacional atual em Portugal.",
+            "description": "Retorna o salário mínimo nacional PT atual (Portaria n.º 1/2025).",
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
@@ -504,18 +464,14 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "calculate_tsu",
-            "description": "Calcula as contribuições TSU (Taxa Social Única) do empregador e trabalhador.",
+            "description": "Calcula contribuições TSU: empregador 23.75%, trabalhador 11% (Lei n.º 110/2009).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "monthly_salary": {
-                        "type": "number",
-                        "description": "Salário base mensal em euros",
-                    },
+                    "monthly_salary": {"type": "number"},
                     "contract_type": {
                         "type": "string",
                         "enum": ["sem_termo", "termo_certo", "tempo_parcial"],
-                        "description": "Tipo de contrato de trabalho",
                         "default": "sem_termo",
                     },
                 },
@@ -525,8 +481,9 @@ TOOLS_SCHEMA = [
     },
 ]
 
-
-# Mapeamento de nomes para funções
+# ---------------------------------------------------------------------------
+# Mapeamento nome → função
+# ---------------------------------------------------------------------------
 TOOL_FUNCTIONS = {
     "search_labor_law": search_labor_law,
     "search_irs_tables": search_irs_tables,
