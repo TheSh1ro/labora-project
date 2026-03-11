@@ -42,7 +42,7 @@ function App() {
   const handleNewConversation = async () => {
     clearChat();
     try {
-      await fetch(`${API_URL}/agent/usage`, { method: 'DELETE' });
+      await fetch(`${API_URL}/session`, { method: 'DELETE' });
     } catch {
       // silencia erros de rede — estado local já foi limpo
     }
