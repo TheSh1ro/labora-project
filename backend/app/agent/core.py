@@ -60,6 +60,10 @@ openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 MODEL = "gpt-4o-mini"
 
+# Tokens máximos de output — usa o valor central do AGENT_CONFIG para evitar
+# divergência entre a configuração declarada e o parâmetro efectivo da API.
+MAX_OUTPUT_TOKENS = AGENT_CONFIG["max_output_tokens"]  # 16_384
+
 
 def _extract_domain(url: str) -> Optional[str]:
     """Extrai o domínio de uma URL. Retorna None se inválida."""
@@ -237,7 +241,7 @@ class LaborLawAgent:
             # Configuração da chamada ao LLM
             "config": {
                 "temperature": 0,
-                "max_tokens": 1800,
+                "max_tokens": MAX_OUTPUT_TOKENS,
                 "max_iterations": AGENT_CONFIG["max_iterations"],
                 "tool_choice": "auto",
                 "parallel_tool_calls": False,
@@ -318,7 +322,7 @@ class LaborLawAgent:
                         tool_choice="auto",
                         parallel_tool_calls=False,
                         temperature=0,
-                        max_tokens=1800,
+                        max_tokens=MAX_OUTPUT_TOKENS,
                     )
                 except Exception as api_err:
                     if "tool_use_failed" in str(api_err) or "400" in str(api_err):
@@ -328,7 +332,7 @@ class LaborLawAgent:
                             model=self.model,
                             messages=openai_messages,
                             temperature=0,
-                            max_tokens=1800,
+                            max_tokens=MAX_OUTPUT_TOKENS,
                         )
                     else:
                         raise api_err
@@ -360,14 +364,34 @@ class LaborLawAgent:
 
                 effective_tool_calls = message.tool_calls
 
-                # Guard
+                # Guard de iteração 0: força tool call apenas quando a pergunta
+                # requer grounding em legislação ou cálculo concreto.
+                # Perguntas definitórias simples ("o que é X?") podem ser respondidas
+                # directamente pelo modelo — forçar uma tool call geraria latência e
+                # custo desnecessários sem melhorar a qualidade da resposta.
+                _TOPICS_REQUIRING_GROUNDING = {
+                    "salario",
+                    "ferias",
+                    "natal",
+                    "irs",
+                    "tsu",
+                    "despedimento",
+                    "layoff",
+                    "teletrabalho",
+                    "nao_concorrencia",
+                }
+                _needs_grounding = question_meta.get("has_calculation_intent") or bool(
+                    set(question_meta.get("detected_topics", []))
+                    & _TOPICS_REQUIRING_GROUNDING
+                )
                 if (
                     iteration == 0
                     and not effective_tool_calls
                     and choice.finish_reason == "stop"
+                    and _needs_grounding
                 ):
                     logging.warning(
-                        f"[{request_id}] iter 0 sem tool call — a forçar retry"
+                        f"[{request_id}] iter 0 sem tool call (grounding obrigatório) — a forçar retry"
                     )
                     openai_messages.append(
                         {"role": "assistant", "content": message.content or ""}
@@ -409,7 +433,12 @@ class LaborLawAgent:
 
                     # Domínios únicos consultados (extraídos das fontes processadas)
                     unique_domains = sorted(
-                        {d for s in processed_sources for d in [_extract_domain(s.url)] if d}
+                        {
+                            d
+                            for s in processed_sources
+                            for d in [_extract_domain(s.url)]
+                            if d
+                        }
                     )
 
                     # Enriquece output com contexto de negócio
@@ -544,13 +573,29 @@ class LaborLawAgent:
                             total_tools_ms += tool_ms
                             tool_log["execution_ms"] = tool_ms
 
+                            # --- Truncagem do resultado ---
+                            # Para tools de pesquisa (Tavily): limita a 3 resultados
+                            # completos em vez de cortar por caracteres arbitrários,
+                            # evitando truncar a meio de um artigo relevante.
+                            # Para tools de cálculo: sem truncagem (resultado pequeno
+                            # e determinístico). Limite de segurança de 12k chars mantido
+                            # como último recurso para payloads inesperadamente grandes.
+                            if isinstance(result, dict) and "results" in result:
+                                original_results_count = len(result.get("results", []))
+                                result = {**result, "results": result["results"][:3]}
+                                if original_results_count > 3:
+                                    tool_log["search_results_truncated"] = True
+                                    tool_log["search_results_original_count"] = (
+                                        original_results_count
+                                    )
+
                             raw = json.dumps(result, ensure_ascii=False)
-                            truncated = raw[:9000]
+                            truncated = raw[:12_000]
                             tool_info.result = raw[:500]
 
                             tool_log["result_chars_raw"] = len(raw)
                             tool_log["result_chars_sent"] = len(truncated)
-                            tool_log["result_truncated"] = len(raw) > 9000
+                            tool_log["result_truncated"] = len(raw) > 12_000
                             tool_log["result_preview"] = truncated[:300]
 
                             # Enriquece com detalhe de pesquisa (Tavily)
