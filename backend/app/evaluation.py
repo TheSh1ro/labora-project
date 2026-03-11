@@ -5,6 +5,7 @@ Suite de Avaliação do Agente de Direito Laboral.
 Implementa casos de teste e métricas de qualidade.
 """
 
+import asyncio
 import re
 import time
 from typing import List, Dict, Any
@@ -13,26 +14,26 @@ from .agent import agent
 from .models import EvaluationCase, EvaluationResult, EvaluationSummary, Message
 
 TEST_CASES: List[EvaluationCase] = [
-    # Básico
+    # Basic
     EvaluationCase(
         id="basic_001",
         question="Qual é o salário mínimo nacional atual em Portugal?",
-        category="básico",
+        category="Basic",
         expected_topics=["salário mínimo", "870", "2025"],
         requires_citation=True,
     ),
     EvaluationCase(
         id="basic_002",
         question="A quantos dias de férias tem direito um trabalhador a tempo inteiro?",
-        category="básico",
+        category="Basic",
         expected_topics=["22 dias", "férias", "direito"],
         requires_citation=True,
     ),
-    # Intermédio
+    # Medium
     EvaluationCase(
         id="intermediate_001",
         question="Como se calcula o subsídio de férias para um trabalhador que ganha 1.500 EUR/mês?",
-        category="intermédio",
+        category="Medium",
         expected_topics=["subsídio", "férias", "cálculo", "1500", "fórmula"],
         requires_calculation=True,
         requires_citation=True,
@@ -40,22 +41,22 @@ TEST_CASES: List[EvaluationCase] = [
     EvaluationCase(
         id="intermediate_002",
         question="Quais são as taxas de contribuição TSU do empregador e do trabalhador num contrato sem termo?",
-        category="intermédio",
+        category="Medium",
         expected_topics=["TSU", "23.75%", "11%", "empregador", "trabalhador"],
         requires_citation=True,
     ),
     EvaluationCase(
         id="intermediate_003",
         question="Que prazo de aviso prévio é necessário para despedir um trabalhador com 3 anos de antiguidade?",
-        category="intermédio",
+        category="Medium",
         expected_topics=["aviso prévio", "30 dias", "antiguidade", "despedimento"],
         requires_citation=True,
     ),
-    # Avançado
+    # Advanced
     EvaluationCase(
         id="advanced_001",
         question="Como difere o cálculo do subsídio de Natal para um trabalhador contratado a meio do ano?",
-        category="avançado",
+        category="Advanced",
         expected_topics=["subsídio de Natal", "proporcional", "cálculo", "meses"],
         requires_calculation=True,
         requires_citation=True,
@@ -63,7 +64,7 @@ TEST_CASES: List[EvaluationCase] = [
     EvaluationCase(
         id="advanced_002",
         question="Quais as taxas de retenção na fonte de IRS para um contribuinte solteiro com 2.200 EUR brutos/mês em 2024?",
-        category="avançado",
+        category="Advanced",
         expected_topics=["IRS", "retenção", "taxa", "solteiro", "2200"],
         requires_calculation=True,
         requires_citation=True,
@@ -71,22 +72,22 @@ TEST_CASES: List[EvaluationCase] = [
     EvaluationCase(
         id="advanced_003",
         question="Em que condições pode um empregador implementar lay-off ao abrigo da lei portuguesa?",
-        category="avançado",
+        category="Advanced",
         expected_topics=["lay-off", "condições", "crise", "dificuldades"],
         requires_citation=True,
     ),
-    # Limite
+    # Limit
     EvaluationCase(
         id="limit_001",
         question="A minha empresa está em Portugal mas o trabalhador trabalha remotamente a partir de Espanha. Qual a lei laboral aplicável?",
-        category="limite",
+        category="Limit",
         expected_topics=["teletrabalho", "internacional", "Espanha", "lei aplicável"],
         requires_citation=True,
     ),
     EvaluationCase(
         id="limit_002",
         question="É legal incluir uma cláusula de não concorrência de 3 anos num contrato de trabalho português?",
-        category="limite",
+        category="Limit",
         expected_topics=["não concorrência", "cláusula", "3 anos", "legalidade"],
         requires_citation=True,
     ),
@@ -94,7 +95,7 @@ TEST_CASES: List[EvaluationCase] = [
     EvaluationCase(
         id="extra_001",
         question="Quanto recebe de subsídio de Natal um trabalhador com salário de 2000€ contratado em julho?",
-        category="intermédio",
+        category="Medium",
         expected_topics=["subsídio de Natal", "proporcional", "2000", "6 meses"],
         requires_calculation=True,
         requires_citation=True,
@@ -102,7 +103,7 @@ TEST_CASES: List[EvaluationCase] = [
     EvaluationCase(
         id="extra_002",
         question="Qual o valor líquido mensal de um trabalhador que ganha 1800€ brutos?",
-        category="intermédio",
+        category="Medium",
         expected_topics=["líquido", "TSU", "IRS", "1800"],
         requires_calculation=True,
         requires_citation=True,
@@ -147,6 +148,7 @@ class EvaluationHarness:
         for case in cases:
             result = await self._evaluate_case(case)
             results.append(result)
+            await asyncio.sleep(2)  # evita 429 em cascata
 
         # Calcula métricas agregadas
         return self._calculate_summary(results)
@@ -234,7 +236,7 @@ class EvaluationHarness:
     def _evaluate_refusal(self, response: str, case: "EvaluationCase") -> float:
         """
         Avalia comportamento apropriado face à pergunta:
-        - Casos "limite": pontuação alta se o agente recusar ou adicionar caveats epistémicos.
+        - Casos "Limit": pontuação alta se o agente recusar ou adicionar caveats epistémicos.
         - Outros casos: pontuação alta se o agente responder com base legal fundamentada.
 
         A lógica anterior penalizava respostas corretas (com "artigo", "lei") e premiava
@@ -273,8 +275,8 @@ class EvaluationHarness:
         has_refusal = any(ind in response_lower for ind in refusal_indicators)
         has_grounded = any(ind in response_lower for ind in grounded_indicators)
 
-        if case.category == "limite":
-            # Para casos limite: esperamos recusa ou caveats com recomendação de especialista.
+        if case.category == "Limit":
+            # Para casos limit: esperamos recusa ou caveats com recomendação de especialista.
             if has_refusal:
                 return 1.0
             elif has_grounded:

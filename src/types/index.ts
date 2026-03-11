@@ -56,7 +56,7 @@ export interface ChatRequest {
 export interface EvaluationCase {
   id: string;
   question: string;
-  category: 'básico' | 'intermédio' | 'avançado' | 'limite';
+  category: 'Basic' | 'Medium' | 'Advanced' | 'Limit';
   expected_topics: string[];
   requires_calculation?: boolean;
   requires_citation?: boolean;

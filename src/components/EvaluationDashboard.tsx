@@ -21,10 +21,10 @@ import { cn } from '@/lib/utils';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  básico: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  intermédio: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  avançado: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  limite: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  Basic: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  Medium: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  Advanced: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  Limit: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
 };
 
 export function EvaluationDashboard() {
@@ -95,7 +95,7 @@ export function EvaluationDashboard() {
   };
 
   return (
-    <div className="h-full bg-slate-950 py-8 overflow-auto">
+    <div className="h-full bg-slate-950 overflow-auto p-10">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -105,7 +105,7 @@ export function EvaluationDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-slate-100">
-                Suite de Avaliação
+                Suite de testes
               </h1>
               <p className="text-xs text-slate-400">
                 {cases.length} casos de teste definidos
@@ -265,9 +265,7 @@ export function EvaluationDashboard() {
                       <p className="text-lg font-bold mt-1">
                         {(data.avg_correctness * 100).toFixed(0)}%
                       </p>
-                      <p className="text-[10px] opacity-70">
-                        {data.count} casos
-                      </p>
+                      <p className="text-sm opacity-70">{data.count} casos</p>
                     </div>
                   )
                 )}
@@ -311,7 +309,7 @@ export function EvaluationDashboard() {
                         <Badge
                           variant="outline"
                           className={cn(
-                            'text-[10px] capitalize',
+                            'text-sm capitalize',
                             CATEGORY_COLORS[result.case.category]
                           )}
                         >
@@ -344,7 +342,7 @@ export function EvaluationDashboard() {
                     {isExpanded && (
                       <div className="px-4 pb-4 pt-2 border-t border-slate-700/50 space-y-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                          <p className="text-sm uppercase tracking-wider text-slate-500 mb-1">
                             Resposta
                           </p>
                           <div className="bg-slate-900 p-3 rounded text-sm text-slate-300 max-h-48 overflow-y-auto">
@@ -354,7 +352,7 @@ export function EvaluationDashboard() {
 
                         <div className="grid grid-cols-3 gap-4">
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                            <p className="text-sm uppercase tracking-wider text-slate-500 mb-1">
                               Corretude
                             </p>
                             <Progress
@@ -371,7 +369,7 @@ export function EvaluationDashboard() {
                             </p>
                           </div>
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                            <p className="text-sm uppercase tracking-wider text-slate-500 mb-1">
                               Citações
                             </p>
                             <Progress
@@ -388,7 +386,7 @@ export function EvaluationDashboard() {
                             </p>
                           </div>
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                            <p className="text-sm uppercase tracking-wider text-slate-500 mb-1">
                               Tempo
                             </p>
                             <p className="text-xs text-slate-300 mt-1">
@@ -399,7 +397,7 @@ export function EvaluationDashboard() {
 
                         {result.sources.length > 0 && (
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                            <p className="text-sm uppercase tracking-wider text-slate-500 mb-1">
                               Fontes ({result.sources.length})
                             </p>
                             <div className="flex flex-wrap gap-2">
@@ -420,7 +418,7 @@ export function EvaluationDashboard() {
 
                         {result.tool_calls.length > 0 && (
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+                            <p className="text-sm uppercase tracking-wider text-slate-500 mb-1">
                               Tools ({result.tool_calls.length})
                             </p>
                             <div className="flex flex-wrap gap-2">
@@ -447,9 +445,9 @@ export function EvaluationDashboard() {
         {/* Test Cases List */}
         {!results && cases.length > 0 && (
           <Card className="bg-slate-900 border-slate-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-200">
-                Casos de Teste Disponíveis
+            <CardHeader>
+              <CardTitle className="text-base font-medium text-slate-200">
+                Casos de teste disponíveis
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -459,11 +457,13 @@ export function EvaluationDashboard() {
                     key={testCase.id}
                     className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg border border-slate-800"
                   >
-                    <span className="text-xs text-slate-500">#{index + 1}</span>
+                    <span className="text-xs text-slate-500">
+                      #{String(index + 1).padStart(2, '0')}
+                    </span>
                     <Badge
                       variant="outline"
                       className={cn(
-                        'text-[10px] capitalize',
+                        'text-sm capitalize rounded-none',
                         CATEGORY_COLORS[testCase.category]
                       )}
                     >
@@ -473,7 +473,7 @@ export function EvaluationDashboard() {
                       {testCase.question}
                     </span>
                     {testCase.requires_calculation && (
-                      <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">
+                      <span className="text-sm bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">
                         Cálculo
                       </span>
                     )}

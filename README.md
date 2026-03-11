@@ -147,8 +147,8 @@ npm run dev
 | advanced_001 | Avancado | Calculo proporcional do subsidio de Natal |
 | advanced_002 | Avancado | Taxas IRS para solteiro com 2200€ |
 | advanced_003 | Avancado | Condicoes para lay-off |
-| limit_001 | Limite | Teletrabalho de Espanha |
-| limit_002 | Limite | Clausula de nao concorrencia de 3 anos |
+| limit_001 | Limit | Teletrabalho de Espanha |
+| limit_002 | Limit | Clausula de nao concorrencia de 3 anos |
 | extra_001 | Intermedio | Subsidio de Natal para trabalhador contratado em julho com 2000€ |
 | extra_002 | Intermedio | Valor liquido de trabalhador com 1800€ brutos |
 

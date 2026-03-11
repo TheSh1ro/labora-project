@@ -71,7 +71,7 @@ class EvaluationCase(BaseModel):
 
     id: str
     question: str
-    category: Literal["básico", "intermédio", "avançado", "limite"]
+    category: Literal["Basic", "Medium", "Advanced", "Limit"]
     expected_topics: List[str]
     requires_calculation: bool = False
     requires_citation: bool = True
