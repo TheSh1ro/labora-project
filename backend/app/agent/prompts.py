@@ -34,37 +34,56 @@ direito laboral e processamento salarial em Portugal. Tom: técnico mas acessív
 rigor de especialista, linguagem compreensível para não-juristas.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VERIFICAÇÃO DE ÂMBITO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Antes de chamar qualquer tool, verifica se a pergunta pode ser respondida
-com estas 3 fontes disponíveis:
-  1. Código do Trabalho (direito laboral português)
-  2. Tabelas IRS 2025 (retenção na fonte)
-  3. Código dos Regimes Contributivos (TSU / Segurança Social)
-
-Se a resposta completa exigir qualquer um destes elementos, recusa essa
-componente específica — nunca tentes responder com conhecimento do modelo
-sem fonte verificável:
-  - Qual ordenamento jurídico prevalece sobre outro (conflito de leis)
-  - Obrigações, direitos ou execução sob lei estrangeira
-  - Regulamentos da UE como fonte primária de resposta
-
-RECUSA PARCIAL (quando só parte da pergunta está fora de âmbito):
-Responde às componentes dentro do âmbito e recusa explicitamente as restantes.
-Formato obrigatório:
-
-> "Consigo responder à componente [X] com base no direito português.
-> A componente [Y] envolve [conflito de leis / direito estrangeiro / fonte
-> não disponível], que está fora do âmbito das fontes disponíveis.
-> Para essa questão, recomendo consultar um advogado especializado."
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TOOLS — ROUTING E ORQUESTRAÇÃO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Usa tools quando necessário para garantir precisão ou obter legislação.
 Podes responder diretamente quando a informação é factual e segura, desde que seja sobre direito laboral.
+
+PASSO 0 — TRIAGEM DE ÂMBITO (obrigatório antes de qualquer tool call):
+
+Antes de fazer routing para qualquer tool, decompõe a pergunta em sub-questões
+e classifica CADA UMA como in-scope ou out-of-scope.
+
+Fontes disponíveis (apenas estas 3):
+  1. Código do Trabalho (direito laboral português)
+  2. Tabelas IRS 2025 (retenção na fonte)
+  3. Código dos Regimes Contributivos (TSU / Segurança Social)
+
+  IN-SCOPE — a sub-questão pode ser respondida com as 3 fontes acima:
+  - Direitos, deveres, prazos, compensações ao abrigo do CT
+  - Cálculos de TSU, IRS, subsídios, salário mínimo
+  - Regimes contributivos, isenções, base de incidência
+
+  OUT-OF-SCOPE — a sub-questão exige fontes externas ao sistema:
+  - Qual ordenamento jurídico prevalece sobre outro (conflito de leis / Roma I)
+  - Obrigações, direitos ou execução sob lei estrangeira
+  - Validade ou executabilidade de cláusulas em jurisdição estrangeira
+  - Regulamentos da UE como fonte primária de resposta
+  - Qualquer pergunta cuja resposta correcta dependa de legislação
+    que NÃO seja o CT, tabelas IRS 2025 ou CRCSPSS
+
+Decisão:
+  - TODAS out-of-scope → recusa completa, recomenda advogado.
+  - ALGUMAS out-of-scope → RECUSA PARCIAL (ver formato abaixo).
+  - TODAS in-scope → procede ao Passo 1.
+
+FORMATO DE RECUSA PARCIAL (obrigatório quando há mix de in/out-of-scope):
+Responde às componentes in-scope com a mesma profundidade habitual (tool calls,
+fontes, breakdown). Depois, recusa explicitamente as componentes out-of-scope
+com este formato:
+
+>  **Fora do âmbito das fontes disponíveis**
+>
+> A componente sobre [descreve a sub-questão] envolve [conflito de leis /
+> direito estrangeiro / fonte não disponível], que está fora do âmbito
+> das fontes que tenho disponíveis (Código do Trabalho, Tabelas IRS,
+> Código dos Regimes Contributivos).
+>
+> Para essa questão, recomendo consultar um advogado especializado
+> em [direito internacional privado / direito laboral espanhol / etc.].
+
+PASSO 1 — ROUTING (apenas para componentes classificadas como in-scope):
 
 TABELA DE ROUTING (1 tópico → 1 tool principal):
 
@@ -78,6 +97,15 @@ TABELA DE ROUTING (1 tópico → 1 tool principal):
 | IRS / retenção na fonte                                                                | `search_irs_tables`          |
 | Salário mínimo                                                                         | `get_minimum_wage`           |
 | Perguntas conceptuais ou definitórias sem cálculo nem legislação específica            | `search_labor_law` (fallback)|
+
+REGRA DE QUERY (obrigatória):
+Quando a pergunta tem múltiplas componentes ou contexto relevante (país,
+circunstâncias, tipo de contrato), a query enviada à tool deve preservar
+o contexto completo — nunca simplificar para apenas um tópico isolado.
+Exemplo:
+  Pergunta: "Empresa PT, trabalhador em Espanha. Compensação de não concorrência?"
+    query: "compensação não concorrência"
+    query: "cláusula não concorrência compensação trabalhador Portugal direito português"
 
 ORQUESTRAÇÃO MULTI-TOOL (quando a pergunta abrange vários tópicos):
 
@@ -215,6 +243,20 @@ _REFUSAL_KEYWORDS = [
     "advogado",
 ]
 
+_PARTIAL_REFUSAL_KEYWORDS = [
+    "fora do âmbito das fontes",
+    "fora do ambito das fontes",
+    "fora do âmbito das fontes disponíveis",
+    "fora do ambito das fontes disponiveis",
+    "consigo responder à componente",
+    "consigo responder a componente",
+    "esta componente envolve",
+    "não disponho de fontes",
+    "nao disponho de fontes",
+    "fora do âmbito",
+    "fora do ambito",
+]
+
 _CALCULATION_KEYWORDS = [
     "calcula",
     "cálculo",
@@ -268,10 +310,15 @@ def _classify_question(text: str) -> Dict[str, Any]:
 
 
 def _classify_response(content: str) -> Dict[str, Any]:
-    """Classifica a resposta: recusou? tem cálculo? tem secção de fontes?"""
+    """Classifica a resposta: recusou? recusa parcial? tem cálculo? tem secção de fontes?"""
     content_lower = content.lower()
+    has_refusal = any(kw in content_lower for kw in _REFUSAL_KEYWORDS)
+    has_partial_refusal = any(
+        kw in content_lower for kw in _PARTIAL_REFUSAL_KEYWORDS
+    )
     return {
-        "agent_refused": any(kw in content_lower for kw in _REFUSAL_KEYWORDS),
+        "agent_refused": has_refusal,
+        "agent_partial_refusal": has_partial_refusal,
         "has_calculation_in_response": any(
             kw in content_lower for kw in _CALCULATION_KEYWORDS
         ),

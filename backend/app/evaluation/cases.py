@@ -88,6 +88,24 @@ TEST_CASES: List[EvaluationCase] = [
         expected_topics=["não concorrência", "cláusula", "3 anos", "nula"],
         requires_citation=True,
     ),
+    EvaluationCase(
+        id="limit_003",
+        question=(
+            "A minha empresa está em Portugal e o trabalhador está a ser despedido. "
+            "Ele trabalha remotamente a partir de Espanha. "
+            "1) Qual a lei laboral aplicável? "
+            "2) A cláusula de não concorrência de 2 anos é válida em Espanha? "
+            "3) Que compensação lhe é devida ao abrigo da lei portuguesa?"
+        ),
+        category="Limit",
+        expected_topics=[
+            "compensação",
+            "fora do âmbito",
+            "advogado",
+            "código do trabalho",
+        ],
+        requires_citation=True,
+    ),
     # Casos adicionais
     EvaluationCase(
         id="extra_001",
@@ -217,7 +235,11 @@ def _evaluate_refusal(response: str, case: "EvaluationCase") -> float:
 
     if case.category == "Limit":
         # Para casos limit: esperamos recusa ou caveats com recomendação de especialista.
-        if has_refusal:
+        # Recusa parcial (resposta fundamentada + recusa explícita) é o comportamento ideal.
+        if has_refusal and has_grounded:
+            # Recusa parcial: respondeu ao que podia + recusou o que não podia — ideal.
+            return 1.0
+        elif has_refusal:
             return 1.0
         elif has_grounded:
             # Respondeu com base legal mas sem humildade epistémica — parcialmente aceitável.
