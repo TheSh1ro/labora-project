@@ -84,21 +84,6 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Erro no processamento: {str(e)}")
 
 
-@app.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
-    """
-    Endpoint de chat com streaming (simplificado - não implementado).
-    """
-    # Para simplificar, retornamos a resposta completa
-    # Em uma implementação completa, usaríamos SSE ou WebSockets
-    response = await agent.chat(messages=request.messages, stream=False)
-
-    async def generate():
-        yield f"data: {response.message.content}\n\n"
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
-
-
 @app.get("/evaluation/cases", response_model=List[EvaluationCase])
 async def get_evaluation_cases():
     """
