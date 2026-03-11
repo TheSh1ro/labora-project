@@ -5,13 +5,13 @@ Suite de Avaliação do Agente de Direito Laboral.
 Implementa casos de teste e métricas de qualidade.
 """
 
+import re
 import time
 from typing import List, Dict, Any
 
 from .agent import agent
 from .models import EvaluationCase, EvaluationResult, EvaluationSummary, Message
 
-# Casos de teste definidos no challenge
 TEST_CASES: List[EvaluationCase] = [
     # Básico
     EvaluationCase(
@@ -110,6 +110,16 @@ TEST_CASES: List[EvaluationCase] = [
 ]
 
 
+def _normalize(text: str) -> str:
+    """
+    Normaliza separadores decimais e de milhar para comparação de tópicos.
+    Ex: "1.500 €" -> "1500 €", "23,75%" -> "23.75%"
+    """
+    text = re.sub(r"(\d)\.(\d{3})", r"\1\2", text)
+    text = re.sub(r"(\d),(\d)", r"\1.\2", text)
+    return text
+
+
 class EvaluationHarness:
     """Harness para executar avaliações do agente."""
 
@@ -176,6 +186,8 @@ class EvaluationHarness:
     def _evaluate_correctness(self, response: str, expected_topics: List[str]) -> float:
         """
         Avalia corretude heurística baseada em tópicos esperados.
+        Normaliza separadores decimais e de milhar antes de comparar,
+        para evitar falsos negativos entre "23.75%" (tópico) e "23,75%" (resposta).
 
         Returns:
             Score entre 0 e 1
@@ -183,11 +195,12 @@ class EvaluationHarness:
         if not response:
             return 0.0
 
-        response_lower = response.lower()
+        response_normalized = _normalize(response.lower())
         matches = 0
 
         for topic in expected_topics:
-            if topic.lower() in response_lower:
+            topic_normalized = _normalize(topic.lower())
+            if topic_normalized in response_normalized:
                 matches += 1
 
         return matches / len(expected_topics) if expected_topics else 0.5
