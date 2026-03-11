@@ -142,7 +142,7 @@ function App() {
             title={sidebarCollapsed ? 'Avaliação' : undefined}
           >
             <BarChart3 size={16} className="flex-shrink-0" />
-            {!sidebarCollapsed && <span>Avaliação</span>}
+            {!sidebarCollapsed && <span>Desempenho</span>}
           </button>
         </nav>
 
