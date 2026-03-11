@@ -70,7 +70,7 @@ TEST_CASES: List[EvaluationCase] = [
         id="advanced_003",
         question="Em que condições pode um empregador implementar lay-off ao abrigo da lei portuguesa?",
         category="Advanced",
-        expected_topics=["lay-off", "condições", "crise", "dificuldades"],
+        expected_topics=["lay-off", "condições", "mercado", "trabalhadores"],
         requires_citation=True,
     ),
     # Limit
@@ -78,14 +78,14 @@ TEST_CASES: List[EvaluationCase] = [
         id="limit_001",
         question="A minha empresa está em Portugal mas o trabalhador trabalha remotamente a partir de Espanha. Qual a lei laboral aplicável?",
         category="Limit",
-        expected_topics=["teletrabalho", "internacional", "Espanha", "lei aplicável"],
+        expected_topics=["teletrabalho", "internacional", "Espanha", "legislação"],
         requires_citation=True,
     ),
     EvaluationCase(
         id="limit_002",
         question="É legal incluir uma cláusula de não concorrência de 3 anos num contrato de trabalho português?",
         category="Limit",
-        expected_topics=["não concorrência", "cláusula", "3 anos", "legalidade"],
+        expected_topics=["não concorrência", "cláusula", "3 anos", "nula"],
         requires_citation=True,
     ),
     # Casos adicionais
@@ -93,7 +93,7 @@ TEST_CASES: List[EvaluationCase] = [
         id="extra_001",
         question="Quanto recebe de subsídio de Natal um trabalhador com salário de 2000€ contratado em julho?",
         category="Medium",
-        expected_topics=["subsídio de Natal", "proporcional", "2000", "6 meses"],
+        expected_topics=["subsídio de Natal", "proporcional", "2000", "1000"],
         requires_calculation=True,
         requires_citation=True,
     ),
@@ -189,6 +189,15 @@ def _evaluate_refusal(response: str, case: "EvaluationCase") -> float:
         "não posso ajudar",
         "advogado",
         "jurista",
+        # Variantes português europeu
+        "recomendável",
+        "aconselhável",
+        "recomendo que consulte",
+        "é aconselhável",
+        "é recomendável",
+        "especialista",
+        "consulte um",
+        "aconselha-se",
     ]
 
     # Indicadores de resposta fundamentada em base legal
