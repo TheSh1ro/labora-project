@@ -31,6 +31,8 @@ class Source(BaseModel):
     title: str
     url: str
     snippet: Optional[str] = None
+    relevance_score: float = 0.0
+    is_current: bool = True
 
 
 class ToolCallInfo(BaseModel):
@@ -56,6 +58,10 @@ class ChatResponse(BaseModel):
 
     message: Message
     sources: List[Source] = Field(default_factory=list)
+    all_sources: List[Source] = Field(
+        default_factory=list,
+        description="Todas as fontes retornadas pelas tools (após dedup/rerank), incluindo as não citadas",
+    )
     tool_calls: List[ToolCallInfo] = Field(default_factory=list)
     response_time_ms: float
     usage: TokenUsage = Field(default_factory=TokenUsage)

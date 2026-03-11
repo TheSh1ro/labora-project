@@ -28,6 +28,7 @@ from .prompts import (
     _classify_question,
     _classify_response,
 )
+from .sources import process_sources, extract_used_sources
 from .session import (
     MAX_HISTORY_TURNS,
     PRICING,
@@ -187,7 +188,7 @@ class LaborLawAgent:
                 f"finish={output.get('finish_reason', '?')} | "
                 f"iters={iters} | "
                 f"tools={tool_seq} | "
-                f"sources={output.get('sources_count', 0)} | "
+                f"sources={output.get('sources_used', output.get('sources_returned', 0))}/{output.get('sources_returned', 0)} | "
                 f"domains={domains} | "
                 f"refused={refused} | "
                 f"tokens={usage.get('total_tokens', '?')} "
@@ -400,15 +401,22 @@ class LaborLawAgent:
                         ),
                     )
 
-                    # Domínios únicos consultados (extraídos das fontes acumuladas)
+                    # --- Pipeline de fontes: classify → deduplicate → rerank ---
+                    processed_sources = process_sources(all_sources, user_text)
+                    used_sources, _unused = extract_used_sources(
+                        processed_sources, content
+                    )
+
+                    # Domínios únicos consultados (extraídos das fontes processadas)
                     unique_domains = sorted(
-                        {d for s in all_sources for d in [_extract_domain(s.url)] if d}
+                        {d for s in processed_sources for d in [_extract_domain(s.url)] if d}
                     )
 
                     # Enriquece output com contexto de negócio
                     log["output"] = {
                         "finish_reason": "completed",
-                        "sources_count": len(all_sources),
+                        "sources_returned": len(processed_sources),
+                        "sources_used": len(used_sources),
                         "total_tool_calls": len(all_tool_calls),
                         # Sequência ordenada de tools invocadas (permite ver o "raciocínio" do agente)
                         "tool_call_sequence": [tc.name for tc in all_tool_calls],
@@ -422,8 +430,10 @@ class LaborLawAgent:
                                 "title": s.title,
                                 "url": s.url,
                                 "domain": _extract_domain(s.url),
+                                "relevance_score": s.relevance_score,
+                                "is_current": s.is_current,
                             }
-                            for s in all_sources
+                            for s in processed_sources
                         ],
                         # Domínios únicos consultados (para auditoria de cobertura das fontes)
                         "unique_domains_consulted": unique_domains,
@@ -450,7 +460,8 @@ class LaborLawAgent:
 
                     return ChatResponse(
                         message=Message(role="assistant", content=content),
-                        sources=all_sources,
+                        sources=used_sources,
+                        all_sources=processed_sources,
                         tool_calls=all_tool_calls,
                         response_time_ms=response_time,
                         usage=usage,
@@ -612,18 +623,25 @@ class LaborLawAgent:
                     call_prompt_tokens, call_completion_tokens
                 ),
             )
+            processed_sources = process_sources(all_sources, user_text)
             unique_domains = sorted(
-                {d for s in all_sources for d in [_extract_domain(s.url)] if d}
+                {d for s in processed_sources for d in [_extract_domain(s.url)] if d}
             )
             log["output"] = {
                 "finish_reason": "max_iterations",
-                "sources_count": len(all_sources),
+                "sources_returned": len(processed_sources),
                 "total_tool_calls": len(all_tool_calls),
                 "tool_call_sequence": [tc.name for tc in all_tool_calls],
                 "tools_used": list(dict.fromkeys(tc.name for tc in all_tool_calls)),
                 "sources_detail": [
-                    {"title": s.title, "url": s.url, "domain": _extract_domain(s.url)}
-                    for s in all_sources
+                    {
+                        "title": s.title,
+                        "url": s.url,
+                        "domain": _extract_domain(s.url),
+                        "relevance_score": s.relevance_score,
+                        "is_current": s.is_current,
+                    }
+                    for s in processed_sources
                 ],
                 "unique_domains_consulted": unique_domains,
             }
@@ -643,7 +661,8 @@ class LaborLawAgent:
                     role="assistant",
                     content="Atingi o limite de iteracoes. Por favor, reformule a tua pergunta.",
                 ),
-                sources=all_sources,
+                sources=processed_sources,
+                all_sources=processed_sources,
                 tool_calls=all_tool_calls,
                 response_time_ms=response_time,
                 usage=usage,
