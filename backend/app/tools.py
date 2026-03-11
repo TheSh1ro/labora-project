@@ -100,7 +100,7 @@ IRS_TABLES_2025 = {
 # ---------------------------------------------------------------------------
 # Helper de busca Tavily
 # ---------------------------------------------------------------------------
-def _tavily_search(query: str, domains: list, max_results: int = 3) -> Dict[str, Any]:
+def _tavily_search(query: str, domains: list, max_results: int = 5) -> Dict[str, Any]:
     """Executa busca Tavily nos domínios especificados. Query chega limpa do LLM."""
     if not tavily_client:
         return {
@@ -393,7 +393,7 @@ TOOLS_SCHEMA = [
                 "properties": {
                     "year": {
                         "type": "integer",
-                        "description": "Ano fiscal (2024 ou 2025)",
+                        "description": "Ano fiscal (2024)",
                     },
                     "income": {
                         "type": "number",

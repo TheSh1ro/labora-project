@@ -83,8 +83,8 @@ rigor de especialista, linguagem compreensível para não-juristas.
 TOOLS — ROUTING E ORQUESTRAÇÃO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Regra absoluta: nunca respondas sobre direito laboral ou processamento salarial
-sem chamar pelo menos uma tool. Nunca respondas de memória.
+Usa tools quando necessário para garantir precisão ou obter legislação.
+Podes responder diretamente quando a informação é factual e segura, desde que seja sobre direito laboral.
 
 TABELA DE ROUTING (1 tópico → 1 tool principal):
 
@@ -450,9 +450,7 @@ class LaborLawAgent:
         except Exception as e:
             logging.warning(f"Falha ao escrever log: {e}")
 
-    async def chat(
-        self, user_message: Message, stream: bool = False
-    ) -> ChatResponse:  # stream: not yet implemented
+    async def chat(self, user_message: Message) -> ChatResponse:
         start_time = time.time()
         request_id = str(uuid.uuid4())[:8]
 

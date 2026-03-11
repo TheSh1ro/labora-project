@@ -260,7 +260,6 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 
 1. **Cache de Resultados**: Implementar cache Redis para queries frequentes
 2. **Mais Tools**: Adicionar tools para reforma, acidentes de trabalho, horas extra
-3. **Streaming Real**: Implementar streaming de tokens no frontend para melhor UX (o parametro `stream` ja existe na API, falta a implementacao no frontend)
 4. **Testes Unitarios**: Cobertura de testes para todas as tools
 
 ### 7.2 Medio Prazo (1 mes)

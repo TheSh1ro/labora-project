@@ -12,7 +12,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 
 from .models import (
@@ -79,7 +78,7 @@ async def chat(request: ChatRequest):
     O histórico da conversa é mantido no servidor até DELETE /session.
     """
     try:
-        response = await agent.chat(user_message=request.message, stream=request.stream)
+        response = await agent.chat(user_message=request.message)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no processamento: {str(e)}")

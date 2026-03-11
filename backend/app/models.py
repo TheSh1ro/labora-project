@@ -23,7 +23,6 @@ class ChatRequest(BaseModel):
     """Request para o endpoint de chat."""
 
     message: Message
-    stream: bool = False
 
 
 class Source(BaseModel):

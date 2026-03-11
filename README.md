@@ -169,7 +169,7 @@ npm run dev
 |----------|--------|-----------|
 | `/` | GET | Health check |
 | `/health` | GET | Health check detalhado |
-| `/chat` | POST | Enviar mensagem (suporta `stream: bool` no body) |
+| `/chat` | POST | Enviar mensagem  |
 | `/evaluation/cases` | GET | Listar casos de teste |
 | `/evaluation/run` | POST | Executar avaliacao |
 | `/agent/info` | GET | Informacoes sobre o agente e modelo |

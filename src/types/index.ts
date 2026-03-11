@@ -50,7 +50,6 @@ export interface ChatResponse {
 
 export interface ChatRequest {
   messages: Message[];
-  stream?: boolean;
 }
 
 export interface EvaluationCase {
