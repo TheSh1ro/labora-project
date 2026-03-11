@@ -68,7 +68,7 @@ export function useChat() {
         const response = await fetch(`${API_URL}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: updatedMessages, stream: false }),
+          body: JSON.stringify({ message: userMessage, stream: false }),
           signal: abortControllerRef.current.signal,
         });
 
@@ -124,6 +124,7 @@ export function useChat() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+    fetch(`${API_URL}/session`, { method: 'DELETE' }).catch(() => {});
     setState({
       messages: [],
       isLoading: false,
