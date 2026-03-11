@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, ClipboardCopy, ClipboardCheck } from 'lucide-react';
+import { Send, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useChat } from '@/hooks/useChat';
 import { Message } from '@/components/Message';
-import { SourcesPanel } from '@/components/SourcesPanel';
-import { ToolCallDisplay } from '@/components/ToolCall';
 import { cn } from '@/lib/utils';
+import type { Source, ToolCallInfo } from '@/types';
 
 const SUGGESTED_QUESTIONS = [
   'Qual é o salário mínimo nacional atual?',
@@ -16,15 +15,27 @@ const SUGGESTED_QUESTIONS = [
   'Como funciona o subsídio de Natal?',
 ];
 
+interface MessageMeta {
+  sources: Source[];
+  toolCalls: ToolCallInfo[];
+  executionLog: Record<string, unknown> | null;
+  responseTime: number | null;
+}
+
 interface ChatProps {
   chatHook?: ReturnType<typeof useChat>;
 }
 
 export function Chat({ chatHook }: ChatProps) {
   const [input, setInput] = useState('');
-  const [copied, setCopied] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Per-message metadata: keyed by assistant message index in the messages array
+  const [messageMeta, setMessageMeta] = useState<Record<number, MessageMeta>>(
+    {}
+  );
+  const prevLoadingRef = useRef(false);
 
   const internalHook = useChat();
   const {
@@ -38,6 +49,41 @@ export function Chat({ chatHook }: ChatProps) {
     sendMessage,
   } = chatHook ?? internalHook;
 
+  // When loading finishes, capture metadata for the last assistant message.
+  // setState is deferred via setTimeout to avoid calling it synchronously
+  // inside the effect body (which triggers cascading renders).
+  useEffect(() => {
+    if (prevLoadingRef.current && !isLoading) {
+      const lastAssistantIndex = messages
+        .map((m, i) => (m.role === 'assistant' ? i : -1))
+        .filter((i) => i >= 0)
+        .pop();
+
+      if (lastAssistantIndex !== undefined) {
+        const snapshot = {
+          sources: lastSources ?? [],
+          toolCalls: lastToolCalls ?? [],
+          executionLog: lastExecutionLog ?? null,
+          responseTime: responseTime ?? null,
+        };
+        setTimeout(() => {
+          setMessageMeta((prev) => ({
+            ...prev,
+            [lastAssistantIndex]: snapshot,
+          }));
+        }, 0);
+      }
+    }
+    prevLoadingRef.current = isLoading;
+  }, [
+    isLoading,
+    messages,
+    lastSources,
+    lastToolCalls,
+    lastExecutionLog,
+    responseTime,
+  ]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -47,15 +93,6 @@ export function Chat({ chatHook }: ChatProps) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-
-  const handleCopyLog = async () => {
-    if (!lastExecutionLog) return;
-    await navigator.clipboard.writeText(
-      JSON.stringify(lastExecutionLog, null, 2)
-    );
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -76,10 +113,6 @@ export function Chat({ chatHook }: ChatProps) {
     setInput(question);
     inputRef.current?.focus();
   };
-
-  const lastAssistantMessage = messages
-    .filter((m) => m.role === 'assistant')
-    .pop();
 
   return (
     <div className="flex flex-col h-full bg-slate-950">
@@ -123,9 +156,19 @@ export function Chat({ chatHook }: ChatProps) {
         ) : (
           /* Messages — constrained width, centered */
           <div className="py-6 space-y-1 w-full max-w-[1080px] min-w-[320px] mx-auto px-4">
-            {messages.map((message, index) => (
-              <Message key={index} message={message} />
-            ))}
+            {messages.map((message, index) => {
+              const meta = messageMeta[index];
+              return (
+                <Message
+                  key={index}
+                  message={message}
+                  sources={meta?.sources}
+                  toolCalls={meta?.toolCalls}
+                  executionLog={meta?.executionLog}
+                  responseTime={meta?.responseTime}
+                />
+              );
+            })}
 
             {isLoading && (
               <div className="flex gap-3 p-4 animate-in fade-in">
@@ -154,16 +197,6 @@ export function Chat({ chatHook }: ChatProps) {
                 <p className="text-xs text-red-400">{error}</p>
               </div>
             )}
-
-            {lastAssistantMessage && !isLoading && (
-              <div className="ml-11 mr-0 pb-2">
-                <ToolCallDisplay toolCalls={lastToolCalls} />
-                <SourcesPanel
-                  sources={lastSources}
-                  responseTime={responseTime}
-                />
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -171,27 +204,6 @@ export function Chat({ chatHook }: ChatProps) {
       {/* Input Area — centered, matches message width */}
       <div className="flex-shrink-0 border-t border-slate-800 bg-slate-900/40 backdrop-blur-sm py-4 px-4">
         <div className="w-full max-w-[720px] min-w-[320px] mx-auto">
-          {messages.length > 0 && lastExecutionLog && (
-            <div className="flex justify-end items-center gap-3 mb-2">
-              <button
-                onClick={handleCopyLog}
-                className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-blue-400 transition-colors"
-              >
-                {copied ? (
-                  <>
-                    <ClipboardCheck size={11} />
-                    <span className="text-blue-400">Copiado!</span>
-                  </>
-                ) : (
-                  <>
-                    <ClipboardCopy size={11} />
-                    Copiar logs
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
           <div className="relative flex items-end gap-2 bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 focus-within:border-blue-500/60 focus-within:ring-1 focus-within:ring-blue-500/20 transition-all duration-200 shadow-lg shadow-black/20">
             <Textarea
               ref={inputRef}
