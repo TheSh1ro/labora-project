@@ -34,10 +34,10 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events."""
     # Startup
-    print("🚀 Iniciando Agente de Direito Laboral Português...")
+    print("Iniciando Agente de Direito Laboral Português...")
     yield
     # Shutdown
-    print("👋 Encerrando servidor...")
+    print("Encerrando servidor...")
 
 
 # Create FastAPI app
