@@ -627,6 +627,26 @@ class LaborLawAgent:
                             f"{[c.function.name for c in inline_calls]}"
                         )
 
+                # Guard
+                if (
+                    iteration == 0
+                    and not effective_tool_calls
+                    and choice.finish_reason == "stop"
+                ):
+                    logging.warning(
+                        f"[{request_id}] iter 0 sem tool call — a forçar retry"
+                    )
+                    openai_messages.append(
+                        {"role": "assistant", "content": message.content or ""}
+                    )
+                    openai_messages.append(
+                        {
+                            "role": "user",
+                            "content": "OBRIGATÓRIO: chama agora uma das tools disponíveis. Não respondas em texto.",
+                        }
+                    )
+                    continue
+
                 # --- Resposta final (sem tool calls) ---
                 if not effective_tool_calls:
                     iter_log["elapsed_ms"] = round((time.time() - iter_start) * 1000)
