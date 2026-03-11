@@ -48,7 +48,7 @@ TEST_CASES: List[EvaluationCase] = [
         id="intermediate_003",
         question="Que prazo de aviso prévio é necessário para despedir um trabalhador com 3 anos de antiguidade?",
         category="intermédio",
-        expected_topics=["aviso prévio", "60 dias", "antiguidade", "despedimento"],
+        expected_topics=["aviso prévio", "30 dias", "antiguidade", "despedimento"],
         requires_citation=True,
     ),
     # Avançado
