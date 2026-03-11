@@ -49,7 +49,7 @@ AGENT_CONFIG = {
     "display_name": "Kimi K2 Instruct",
     "tool_calling": True,
     "max_iterations": 5,
-    "temperature": 0.3,
+    "temperature": 0,
     "features": ["tool_calling", "web_search", "citations", "calculations"],
     "pricing_usd_per_1m": {
         "prompt": 0.59,
