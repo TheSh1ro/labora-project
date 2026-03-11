@@ -60,6 +60,10 @@ class ChatResponse(BaseModel):
     tool_calls: List[ToolCallInfo] = Field(default_factory=list)
     response_time_ms: float
     usage: TokenUsage = Field(default_factory=TokenUsage)
+    execution_log: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Wide event estruturado da execução — disponível para copy no frontend",
+    )
 
 
 class EvaluationCase(BaseModel):
