@@ -348,7 +348,9 @@ class LaborLawAgent:
         except Exception as e:
             logging.warning(f"Falha ao escrever log: {e}")
 
-    async def chat(self, messages: List[Message], stream: bool = False) -> ChatResponse:
+    async def chat(
+        self, messages: List[Message], stream: bool = False
+    ) -> ChatResponse:  # stream: not yet implemented
         start_time = time.time()
         request_id = str(uuid.uuid4())[:8]
 
