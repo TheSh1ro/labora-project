@@ -155,9 +155,13 @@ class EvaluationHarness:
         """Avalia um caso de teste individual."""
         start_time = time.time()
 
-        # Executa o agente
-        messages = [Message(role="user", content=case.question)]
-        response = await agent.chat(messages)
+        # Reinicia a sessão para isolar cada caso de teste (evita contaminação de contexto)
+        agent.reset_session()
+
+        # Executa o agente — passa um único Message, como esperado pela assinatura de chat()
+        response = await agent.chat(
+            user_message=Message(role="user", content=case.question)
+        )
 
         response_time = (time.time() - start_time) * 1000
 
