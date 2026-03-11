@@ -534,12 +534,12 @@ class LaborLawAgent:
                             tool_log["execution_ms"] = tool_ms
 
                             raw = json.dumps(result, ensure_ascii=False)
-                            truncated = raw[:6000]
+                            truncated = raw[:9000]
                             tool_info.result = raw[:500]
 
                             tool_log["result_chars_raw"] = len(raw)
                             tool_log["result_chars_sent"] = len(truncated)
-                            tool_log["result_truncated"] = len(raw) > 6000
+                            tool_log["result_truncated"] = len(raw) > 9000
                             tool_log["result_preview"] = truncated[:300]
 
                             # Enriquece com detalhe de pesquisa (Tavily)
