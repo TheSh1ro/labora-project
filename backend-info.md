@@ -15,6 +15,8 @@ Este documento apresenta o desenvolvimento de um agente conversacional pronto pa
 - **Arquitetura de tool calling** com Groq Functions
 - **Interface web moderna** com React + TypeScript
 - **Suite de avaliacao** com metricas quantitativas
+- **Wide event logging** estruturado por request em `backend/logs/`
+- **Gestao de contexto**: limite de 3 turnos por conversa e trim automatico de historico
 
 ---
 
@@ -26,7 +28,7 @@ Este documento apresenta o desenvolvimento de um agente conversacional pronto pa
 |------------|------------|---------------|
 | Frontend | React + TypeScript + Vite | Tipagem estatica, performance, ecossistema maduro |
 | Backend | Python + FastAPI | Async nativo, OpenAPI automatico, leve |
-| LLM | Groq / LLaMA 3.3 70B | Inferencia rapida, suporte nativo a tool calling, custo-beneficio |
+| LLM | Groq / Kimi K2 Instruct (`moonshotai/kimi-k2-instruct`) | Inferencia rapida, suporte nativo a tool calling, custo-beneficio |
 | Web Search | Tavily API | Foco em fontes oficiais, resultados estruturados |
 | UI | Tailwind CSS + shadcn/ui | Componentes acessiveis, customizaveis |
 
@@ -45,11 +47,28 @@ Usuario → Classificador de Intencao → Seletor de Tool → Execucao → Agreg
 
 ### 2.3 Estrategia de Retrieval
 
-Implementei uma estrategia hibrida:
+Implementei uma estrategia hibrida com **dominios dedicados por tool** (sem sobreposicao):
 
-- **Web Search (Tavily)**: Para informacoes atualizadas do Codigo do Trabalho, IRS, Seguranca Social
-- **Calculos Locais**: Para formulas matematicas (subsidios, TSU) garantindo precisao
-- **Dados Estaticos**: Para valores fixos (salario minimo, taxas TSU)
+- **Web Search (Tavily) — `search_labor_law`**: Pesquisa no Codigo do Trabalho via `portal.act.gov.pt` e `pgdlisboa.pt`
+- **Web Search (Tavily) — `search_social_security`**: Pesquisa TSU via `diariodarepublica.pt` e `seg-social.pt`
+- **Hibrida — `search_irs_tables`**: Calcula a taxa de retencao IRS localmente com as tabelas de 2025 (Despacho n.º 236-A/2025) e complementa com pesquisa web em `info.portaldasfinancas.gov.pt`
+- **Calculos Locais**: Para formulas matematicas deterministas (subsidios, TSU, salario minimo) — sem I/O, resultados precisos
+
+### 2.4 Gestao de Contexto e Limites
+
+O agente implementa dois mecanismos para controlar o tamanho do contexto enviado ao LLM:
+
+- **`MAX_CONVERSATION_TURNS = 3`**: Bloqueia a resposta a partir da 4ª pergunta do utilizador na mesma conversa, devolvendo mensagem de redirecionamento para nova sessao
+- **`MAX_HISTORY_TURNS = 5`**: Mantém apenas os ultimos 5 pares user/assistant (10 mensagens) no contexto enviado ao LLM
+
+### 2.5 Classificacao de Perguntas
+
+Antes de chamar o LLM, cada pergunta e classificada automaticamente por `_classify_question`:
+
+- **Topicos detectados**: salario, ferias, natal, irs, tsu, despedimento, layoff, teletrabalho, nao_concorrencia, contrato
+- **Intencao de calculo**: detecao de keywords como "quanto", "calcul", "taxa", "liquido"
+
+Esta classificacao e incluida no wide event log e permite auditoria do comportamento do agente.
 
 ---
 
@@ -59,45 +78,77 @@ Implementei uma estrategia hibrida:
 
 ```python
 TOOLS = [
-    "search_labor_law",           # Pesquisa no Codigo do Trabalho
-    "search_irs_tables",          # Consulta tabelas IRS
-    "search_social_security",     # Pesquisa TSU
-    "calculate_vacation_subsidy", # Calculo de subsidio de ferias
-    "calculate_christmas_subsidy",# Calculo de subsidio de Natal
-    "get_minimum_wage",           # Salario minimo atual
-    "calculate_tsu",              # Calculo de contribuicoes
+    "search_labor_law",           # Pesquisa no Codigo do Trabalho (portal.act.gov.pt, pgdlisboa.pt)
+    "search_irs_tables",          # Hibrida: calculo local IRS 2025 + web search (portaldasfinancas)
+    "search_social_security",     # Pesquisa TSU (diariodarepublica.pt, seg-social.pt)
+    "calculate_vacation_subsidy", # Calculo de subsidio de ferias (Art. 264º CT)
+    "calculate_christmas_subsidy",# Calculo de subsidio de Natal (Art. 263º CT)
+    "get_minimum_wage",           # Salario minimo — Portaria n.º 1/2025 (870 EUR/mes)
+    "calculate_tsu",              # Calculo de contribuicoes TSU — Lei n.º 110/2009
 ]
 ```
 
 ### 3.2 Formulas de Calculo
 
-**Subsidio de Ferias:**
+**Subsidio de Ferias (Art. 264º CT):**
 ```
 Subsidio = (Salario Base × 12) ÷ 365 × Dias de Ferias
 ```
 
-**Subsidio de Natal (proporcional):**
+**Subsidio de Natal (Art. 263º CT) — integral:**
+```
+Subsidio = 1 mes de salario base
+```
+
+**Subsidio de Natal — proporcional (contrato iniciado a meio do ano):**
 ```
 Subsidio = (Salario Base ÷ 12) × Meses Trabalhados
 ```
+> Quando fornecido `start_month`, os meses sao calculados como `13 - start_month`.
 
-**TSU:**
+**TSU (Lei n.º 110/2009):**
 ```
 Empregador: 23.75% do salario bruto
 Trabalhador: 11% do salario bruto
+Total: 34.75%
 ```
+
+**IRS — Retencao na Fonte (Despacho n.º 236-A/2025, tabelas 2025):**
+
+Calculo local por escaloes mensais (solteiro, casado-unico, casado-dois), com deducao de 21,43 EUR por dependente. Complementado por pesquisa web para contexto atualizado.
 
 ### 3.3 Prompt Engineering
 
-O system prompt foi cuidadosamente elaborado para:
+O system prompt foi elaborado para:
 - Garantir respostas em portugues europeu
-- Exigir citacoes de fontes em todas as respostas
+- Exigir uso das tools antes de responder (nunca de memoria)
 - Instruir recusa graciosa quando nao ha certeza
-- Estruturar respostas com markdown claro
+- Estruturar respostas com Markdown (headers, negrito, formulas em linha de codigo)
+- Impor formato consistente: valor principal na primeira linha, calculos a seguir, secao "Fontes" no final
 
 ### 3.4 Gestao de Tokens e Custo
 
-O agente acumula e expoe o consumo de tokens por sessao via `/agent/usage`, calculando o custo estimado com base nos precos Groq (0.59 USD/1M prompt tokens, 0.79 USD/1M completion tokens). Os contadores podem ser reiniciados via `DELETE /agent/usage`.
+O agente acumula e expoe o consumo de tokens por sessao via `/agent/usage`, calculando o custo estimado com base nos precos Groq:
+
+| Tipo | Preco |
+|------|-------|
+| Prompt tokens | 0,59 USD / 1M tokens |
+| Completion tokens | 0,79 USD / 1M tokens |
+
+Os contadores podem ser reiniciados via `DELETE /agent/usage`.
+
+### 3.5 Wide Event Logging
+
+Cada request gera um ficheiro JSON em `backend/logs/` com o seguinte conteudo:
+
+- `request_id`, `timestamp`, `model`
+- `input`: mensagem, topicos detectados, intencao de calculo, historico enviado/recebido
+- `iterations[]`: por cada iteracao do loop de tool calling — tool chamada, argumentos, resultado, tempo de execucao, fontes encontradas, resumo de calculo
+- `output`: finish_reason, numero de fontes, sequencia de tools, dominios consultados
+- `usage`: prompt_tokens, completion_tokens, custo estimado
+- `timing_ms`: tempo total, tempo LLM, tempo tools, por iteracao
+
+Os logs sao listados e consultados via `/logs` e `/logs/{request_id}`. A resposta da API tambem inclui o `execution_log` no campo homonimo do `ChatResponse`.
 
 ---
 
@@ -162,8 +213,8 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 **Problema**: LLMs tendem a alucinar artigos de lei ou valores desatualizados.
 
 **Solucao**:
-- Tool calling obrigatorio para informacoes factuais
-- Pesquisa web em fontes oficiais
+- Tool calling obrigatorio para informacoes factuais (nunca responde de memoria)
+- Pesquisa web em fontes oficiais com dominios dedicados por tool
 - Citacao de URLs em todas as respostas
 
 ### 6.2 Desafio: Precisao em Calculos
@@ -172,8 +223,9 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 
 **Solucao**:
 - Implementacao de funcoes de calculo dedicadas
-- Formulas hardcoded e testadas
-- Exibicao do passo a passo do calculo
+- Formulas hardcoded e testadas (subsidios, TSU)
+- `search_irs_tables` hibrida: tabelas IRS 2025 calculadas localmente (Despacho n.º 236-A/2025)
+- Exibicao do passo a passo do calculo na resposta
 
 ### 6.3 Desafio: Respostas em Tempo Real
 
@@ -181,6 +233,7 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 
 **Solucao**:
 - Uso de async/await em todo o pipeline
+- Tools sincronas executadas em `asyncio.to_thread` para nao bloquear o event loop
 - Timeout adequado (30s)
 - Feedback visual de loading
 
@@ -191,6 +244,14 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 **Solucao**:
 - `parallel_tool_calls=False` na configuracao do agente
 
+### 6.5 Desafio: Crescimento do Contexto em Conversas Longas
+
+**Problema**: Conversas multi-turno aumentam o contexto enviado ao LLM, elevando latencia e custo.
+
+**Solucao**:
+- `MAX_HISTORY_TURNS=5`: trim automatico do historico para os ultimos 5 pares
+- `MAX_CONVERSATION_TURNS=3`: limite de 3 perguntas por sessao; a 4ª e bloqueada com mensagem de redirecionamento
+
 ---
 
 ## 7. O que Faria com Mais Tempo
@@ -199,7 +260,7 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 
 1. **Cache de Resultados**: Implementar cache Redis para queries frequentes
 2. **Mais Tools**: Adicionar tools para reforma, acidentes de trabalho, horas extra
-3. **Streaming**: Implementar streaming de respostas para melhor UX
+3. **Streaming Real**: Implementar streaming de tokens no frontend para melhor UX (o parametro `stream` ja existe na API, falta a implementacao no frontend)
 4. **Testes Unitarios**: Cobertura de testes para todas as tools
 
 ### 7.2 Medio Prazo (1 mes)
@@ -222,8 +283,11 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 
 O agente Q&A de Direito Laboral Portugues demonstra uma implementacao robusta de:
 
-- **Tool calling estruturado** com separacao clara de responsabilidades
+- **Tool calling estruturado** com separacao clara de responsabilidades e dominios dedicados por fonte
 - **Pesquisa web em tempo real** em fontes oficiais portuguesas
+- **Calculos deterministas locais** com tabelas IRS 2025 e formulas do Codigo do Trabalho
+- **Wide event logging** para rastreabilidade e auditoria completa por request
+- **Gestao de contexto** com limite de conversa e trim de historico
 - **Suite de avaliacao** com metricas quantitativas
 - **Interface moderna** e responsiva
 
@@ -233,11 +297,14 @@ A arquitetura esta preparada para escalar e receber novas funcionalidades. A sui
 
 ## 9. Referencias
 
-1. Codigo do Trabalho - portal.act.gov.pt
-2. Portal das Financas - info.portaldasfinancas.gov.pt
-3. Seguranca Social - seg-social.pt
-4. Groq API - groq.com
-5. Tavily API - tavily.com
+1. Codigo do Trabalho — portal.act.gov.pt, pgdlisboa.pt
+2. Portal das Financas / IRS — info.portaldasfinancas.gov.pt
+3. Seguranca Social / TSU — seg-social.pt, diariodarepublica.pt
+4. Portaria n.º 1/2025 — Salario Minimo Nacional (870 EUR)
+5. Lei n.º 110/2009 — Codigo dos Regimes Contributivos (TSU)
+6. Despacho n.º 236-A/2025 — Tabelas de Retencao IRS 2025
+7. Groq API — groq.com
+8. Tavily API — tavily.com
 
 ---
 

@@ -6,11 +6,14 @@ Agente conversacional pronto para producao que responde a questoes sobre direito
 
 ## Funcionalidades
 
-- **Camada de Retrieval**: Pesquisa web em fontes oficiais portuguesas (Portal das Financas, CITE, DRE, Codigo do Trabalho)
-- **Agente Conversacional**: Interface Q&A multi-turno com arquitetura de tool calling
+- **Camada de Retrieval**: Pesquisa web em fontes oficiais portuguesas (Portal das Financas, CITE, DRE, Codigo do Trabalho, pgdlisboa.pt)
+- **Agente Conversacional**: Interface Q&A multi-turno com arquitetura de tool calling (limite de 3 turnos por conversa)
 - **Suite de Avaliacao**: Harness de avaliacao com 12 casos de teste e metricas de qualidade
 - **Citacoes de Fontes**: Cada resposta inclui URLs das fontes consultadas
 - **Calculos Especializados**: Subsidios, TSU, IRS com formulas e passo a passo
+- **Wide Event Logging**: Cada pedido gera um log JSON estruturado em `backend/logs/` com tempos, tokens, ferramentas e fontes consultadas
+- **Gestao de Historico**: Trim automatico do historico para os ultimos 5 pares (10 mensagens)
+- **Classificacao de Perguntas**: Detecao automatica de topicos e intencao de calculo antes de chamar o LLM
 
 ## Quick Start
 
@@ -22,7 +25,7 @@ Agente conversacional pronto para producao que responde a questoes sobre direito
 
 ### Modelo LLM
 
-O agente usa o modelo **`llama-3.3-70b-versatile`** via [Groq API](https://groq.com), com suporte a tool calling nativo.
+O agente usa o modelo **`moonshotai/kimi-k2-instruct`** (Kimi K2 Instruct) via [Groq API](https://groq.com), com suporte a tool calling nativo.
 
 ### 1. Clone e Instale
 
@@ -87,15 +90,15 @@ npm run dev
 │                        BACKEND (FastAPI)                         │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │              Agente Conversacional                      │    │
-│  │         (Groq / LLaMA 3.3 70B / Tool Calling)          │    │
+│  │       (Groq / Kimi K2 Instruct / Tool Calling)          │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                              │                                   │
 │        ┌─────────────────────┼─────────────────────┐             │
 │        ▼                     ▼                     ▼             │
 │  ┌──────────┐         ┌──────────┐         ┌──────────┐         │
-│  │  search_ │         │ calculate│         │  extract_│         │
+│  │  search_ │         │ calculate│         │  search_ │         │
 │  │  labor_  │         │  subsidy │         │  irs_    │         │
-│  │  law     │         │          │         │  rates   │         │
+│  │  law     │         │          │         │  tables  │         │
 │  └──────────┘         └──────────┘         └──────────┘         │
 │        │                     │                     │             │
 │        └─────────────────────┼─────────────────────┘             │
@@ -111,13 +114,15 @@ npm run dev
 
 | Tool | Descricao | Fontes |
 |------|-----------|--------|
-| `search_labor_law` | Pesquisa no Codigo do Trabalho | portal.act.gov.pt |
-| `search_irs_tables` | Consulta tabelas de retencao IRS | info.portaldasfinancas.gov.pt |
-| `search_social_security` | Pesquisa TSU e contribuicoes | diariodarepublica.pt |
-| `calculate_vacation_subsidy` | Calcula subsidio de ferias | - |
-| `calculate_christmas_subsidy` | Calcula subsidio de Natal | - |
-| `get_minimum_wage` | Retorna salario minimo nacional | - |
-| `calculate_tsu` | Calcula contribuicoes TSU | - |
+| `search_labor_law` | Pesquisa no Codigo do Trabalho | portal.act.gov.pt, pgdlisboa.pt |
+| `search_irs_tables` | Calculo local de retencao IRS + contexto web (hibrida) | info.portaldasfinancas.gov.pt |
+| `search_social_security` | Pesquisa TSU e contribuicoes | diariodarepublica.pt, seg-social.pt |
+| `calculate_vacation_subsidy` | Calcula subsidio de ferias (Art. 264º CT) | - |
+| `calculate_christmas_subsidy` | Calcula subsidio de Natal (Art. 263º CT) | - |
+| `get_minimum_wage` | Retorna salario minimo nacional (Portaria n.º 1/2025) | - |
+| `calculate_tsu` | Calcula contribuicoes TSU (Lei n.º 110/2009) | - |
+
+> **Nota:** `search_irs_tables` e uma tool hibrida: calcula a taxa de retencao localmente com base nas tabelas IRS 2025 (Despacho n.º 236-A/2025) e complementa com pesquisa web no Portal das Financas para contexto atualizado.
 
 ## Suite de Avaliacao
 
@@ -164,8 +169,7 @@ npm run dev
 |----------|--------|-----------|
 | `/` | GET | Health check |
 | `/health` | GET | Health check detalhado |
-| `/chat` | POST | Enviar mensagem |
-| `/chat/stream` | POST | Enviar mensagem com streaming |
+| `/chat` | POST | Enviar mensagem (suporta `stream: bool` no body) |
 | `/evaluation/cases` | GET | Listar casos de teste |
 | `/evaluation/run` | POST | Executar avaliacao |
 | `/agent/info` | GET | Informacoes sobre o agente e modelo |
@@ -173,18 +177,27 @@ npm run dev
 | `/agent/usage` | DELETE | Reiniciar contadores de tokens |
 | `/tools` | GET | Listar tools disponiveis |
 | `/sources` | GET | Listar fontes oficiais |
+| `/logs` | GET | Listar logs de execucao disponiveis |
+| `/logs/{request_id}` | GET | Obter log de execucao por ID |
+| `/logs` | DELETE | Limpar todos os logs |
 
 ## Decisoes de Arquitetura
 
 1. **Tool Calling vs Prompting**: Arquitetura de tool calling estruturada em vez de prompting de turno unico para maior controlo, rastreabilidade e testabilidade.
 
-2. **Groq + LLaMA 3.3 70B**: Uso da Groq API com o modelo `llama-3.3-70b-versatile` para inferencia rapida com suporte nativo a tool calling.
+2. **Groq + Kimi K2 Instruct**: Uso da Groq API com o modelo `moonshotai/kimi-k2-instruct` para inferencia rapida com suporte nativo a tool calling.
 
-3. **Fontes Oficiais**: Integracao com Tavily API para pesquisa em dominios oficiais portugueses, garantindo factualidade.
+3. **Fontes Oficiais**: Integracao com Tavily API para pesquisa em dominios oficiais portugueses, garantindo factualidade. Cada tool tem dominios dedicados sem sobreposicao.
 
-4. **Calculos Localizados**: Formulas de calculo implementadas localmente para garantir precisao matematica.
+4. **Calculos Localizados**: Formulas de calculo implementadas localmente para garantir precisao matematica. `search_irs_tables` e hibrida: calcula localmente com tabelas IRS 2025 e complementa com pesquisa web.
 
 5. **Avaliacao Automatizada**: Suite de avaliacao com metricas quantitativas para medir qualidade do agente.
+
+6. **Wide Event Logging**: Cada request gera um ficheiro JSON em `backend/logs/` com todos os detalhes da execucao (tokens, tempos por iteracao, ferramentas chamadas, fontes consultadas, custo estimado). Os logs sao expostos via API (`/logs`).
+
+7. **Limites de Conversa e Historico**: O agente bloqueia a 4ª pergunta da mesma conversa (`MAX_CONVERSATION_TURNS=3`) e faz trim automatico do historico para os ultimos 5 pares (`MAX_HISTORY_TURNS=5`), controlando o tamanho do contexto enviado ao LLM.
+
+8. **Classificacao de Perguntas**: Antes de chamar o LLM, cada pergunta e classificada automaticamente em topicos (salario, ferias, IRS, TSU, despedimento, etc.) e detectada a intencao de calculo. Esta informacao e incluida no wide event log.
 
 ## Estrutura do Projeto
 
@@ -197,6 +210,7 @@ npm run dev
 │   │   ├── tools.py
 │   │   ├── models.py
 │   │   └── evaluation.py
+│   ├── logs/           # Wide event logs por request (JSON)
 │   ├── requirements.txt
 │   └── .env.example
 ├── src/
