@@ -417,11 +417,11 @@ TOOLS_SCHEMA = [
         "function": {
             "name": "search_social_security",
             "description": (
-                "Pesquisa TSU e contribuições — Lei n.º 110/2009 (diariodarepublica.pt, seg-social.pt). "
-                "Usa para: taxas TSU, regimes especiais, isenções, base de incidência. "
-                "Chama esta tool no máximo 2 vezes por pergunta. "
-                "Se os resultados da primeira chamada não forem suficientes, "
-                "reformula a query uma única vez — nunca repitas a mesma query."
+                "Pesquisa legislação TSU e contribuições — Lei n.º 110/2009 (diariodarepublica.pt, seg-social.pt). "
+                "Usa APENAS para: regimes especiais, isenções, base de incidência, dúvidas legislativas sobre TSU. "
+                "NÃO uses para calcular valores de TSU em EUR nem para decompor empregador/trabalhador — "
+                "usa calculate_tsu para isso. "
+                "Chama esta tool no máximo 2 vezes por pergunta."
             ),
             "parameters": {
                 "type": "object",
@@ -481,7 +481,12 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "calculate_tsu",
-            "description": "Calcula contribuições TSU: empregador 23.75%, trabalhador 11% (Lei n.º 110/2009).",
+            "description": (
+                "Calcula contribuições TSU em EUR: empregador 23.75%, trabalhador 11% (Lei n.º 110/2009). "
+                "Usa SEMPRE que a pergunta mencionar um salário concreto e pedir valores TSU em EUR, "
+                "decomposição empregador/trabalhador, ou salário líquido após TSU. "
+                "Mais rápido e preciso que qualquer pesquisa web — não uses search_social_security para isto."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
