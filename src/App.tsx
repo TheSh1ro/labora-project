@@ -9,6 +9,7 @@ import {
   Coins,
   ChevronLeft,
   Gavel,
+  CirclePlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
@@ -29,7 +30,7 @@ function App() {
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const chatHook = useChat();
-  const { sessionUsage } = chatHook;
+  const { sessionUsage, clearChat } = chatHook;
 
   useEffect(() => {
     fetch(`${API_URL}/agent/info`)
@@ -37,6 +38,16 @@ function App() {
       .then((data) => setAgentInfo(data))
       .catch(() => null);
   }, []);
+
+  const handleNewConversation = async () => {
+    clearChat();
+    try {
+      await fetch(`${API_URL}/agent/usage`, { method: 'DELETE' });
+    } catch {
+      // silencia erros de rede — estado local já foi limpo
+    }
+    setActiveTab('chat');
+  };
 
   return (
     <div className="h-screen bg-slate-950 flex overflow-hidden">
@@ -70,6 +81,21 @@ function App() {
 
         {/* Nav Items */}
         <nav className="flex-1 p-2 space-y-1 pt-3">
+          {/* Nova Conversa */}
+          <button
+            onClick={handleNewConversation}
+            className={cn(
+              'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 min-h-11',
+              'text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-dashed border-slate-700 hover:border-slate-500'
+            )}
+            title={sidebarCollapsed ? 'Nova conversa' : undefined}
+          >
+            <CirclePlus size={16} className="flex-shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="whitespace-nowrap">Nova conversa</span>
+            )}
+          </button>
+
           <button
             onClick={() => setActiveTab('chat')}
             className={cn(
