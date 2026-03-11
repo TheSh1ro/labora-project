@@ -147,14 +147,29 @@ def search_irs_tables(
 ) -> Dict[str, Any]:
     """
     Consulta tabelas de retenção IRS.
-    Calcula taxa local se income+marital_status fornecidos,
-    complementado por busca em info.portaldasfinancas.gov.pt para contexto atualizado.
+    Calcula taxa local se income+marital_status fornecidos (apenas 2025).
+    Para outros anos, faz fallback para pesquisa Tavily em vez de retornar erro.
     """
     if year != 2025:
+        # Dados estáticos só cobrem 2025 — pesquisa web para anos anteriores/futuros
+        query = f"tabelas retenção IRS {year} trabalhadores dependentes escalões"
+        if income:
+            query += f" rendimento {income} EUR"
+        web = _tavily_search(query, DOMAINS_IRS, max_results=3)
         return {
-            "success": False,
-            "error": f"Tabelas disponíveis apenas para 2025. Solicitado: {year}",
+            "success": web.get("success", False),
             "year": year,
+            "note": f"Tabelas locais disponíveis apenas para 2025. Resultados obtidos via pesquisa web para {year}.",
+            "income": income,
+            "marital_status": marital_status,
+            "dependents": dependents,
+            "results": web.get("results", []),
+            "sources": [
+                {
+                    "title": f"Tabelas de Retenção na Fonte IRS {year} — Portal das Finanças",
+                    "url": "https://info.portaldasfinancas.gov.pt/pt/apoio_contribuinte/tabela_ret_doclib/",
+                }
+            ],
         }
 
     result: Dict[str, Any] = {
@@ -370,6 +385,7 @@ TOOLS_SCHEMA = [
             "description": (
                 "Tabelas de retenção IRS PT (info.portaldasfinancas.gov.pt). "
                 "Usa para: taxas de retenção mensais, escalões, deduções por dependente, IRS Jovem. "
+                "Dados locais calculados para 2025; para outros anos faz pesquisa web automaticamente. "
                 "Chama esta tool apenas uma vez — os dados locais já incluem os valores calculados."
             ),
             "parameters": {
