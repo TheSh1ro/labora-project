@@ -21,13 +21,13 @@ export function ToolCallDisplay({ toolCalls }: ToolCallProps) {
 
   const getToolLabel = (name: string) => {
     const labels: Record<string, string> = {
-      'search_labor_law': 'Pesquisar Código do Trabalho',
-      'search_irs_tables': 'Consultar Tabelas IRS',
-      'search_social_security': 'Pesquisar Segurança Social',
-      'calculate_vacation_subsidy': 'Calcular Subsídio de Férias',
-      'calculate_christmas_subsidy': 'Calcular Subsídio de Natal',
-      'get_minimum_wage': 'Obter Salário Mínimo',
-      'calculate_tsu': 'Calcular TSU',
+      search_labor_law: 'Pesquisar Código do Trabalho',
+      search_irs_tables: 'Consultar Tabelas IRS',
+      search_social_security: 'Pesquisar Segurança Social',
+      calculate_vacation_subsidy: 'Calcular Subsídio de Férias',
+      calculate_christmas_subsidy: 'Calcular Subsídio de Natal',
+      get_minimum_wage: 'Obter Salário Mínimo',
+      calculate_tsu: 'Calcular TSU',
     };
     return labels[name] || name;
   };
@@ -43,6 +43,8 @@ export function ToolCallDisplay({ toolCalls }: ToolCallProps) {
         {toolCalls.map((tool, index) => {
           const isExpanded = expandedIndex === index;
           const hasError = !!tool.error;
+          const hasArguments =
+            tool.arguments && Object.keys(tool.arguments).length > 0;
 
           return (
             <div
@@ -79,14 +81,16 @@ export function ToolCallDisplay({ toolCalls }: ToolCallProps) {
               {isExpanded && (
                 <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
                   <div className="space-y-2">
-                    <div>
-                      <span className="text-[10px] uppercase tracking-wider text-slate-500">
-                        Argumentos
-                      </span>
-                      <pre className="mt-1 text-xs bg-slate-900/50 p-2 rounded text-slate-300 overflow-x-auto">
-                        {JSON.stringify(tool.arguments, null, 2)}
-                      </pre>
-                    </div>
+                    {hasArguments && (
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider text-slate-500">
+                          Argumentos
+                        </span>
+                        <pre className="mt-1 text-xs bg-slate-900/50 p-2 rounded text-slate-300 overflow-x-auto">
+                          {JSON.stringify(tool.arguments, null, 2)}
+                        </pre>
+                      </div>
+                    )}
 
                     {tool.result && (
                       <div>
