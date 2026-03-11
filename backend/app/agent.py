@@ -2,7 +2,7 @@
 
 """
 Agente Conversacional de Direito Laboral Português.
-Implementa tool calling com Groq (moonshotai/kimi-k2-instruct).
+Implementa tool calling com OpenAI (gpt-4o).
 """
 
 import asyncio
@@ -15,14 +15,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
-from groq import AsyncGroq
+from openai import AsyncOpenAI
 
 from .tools import TOOLS_SCHEMA, TOOL_FUNCTIONS
 from .models import Message, Source, ToolCallInfo, ChatResponse, TokenUsage
 
 # ---------------------------------------------------------------------------
-# NOTE: llama-3.3-70b-versatile supports native structured tool calling via
-# the Groq API. No content-level fallback parsers are needed.
+# NOTE: gpt-4o suporta native structured tool calling via OpenAI API.
 # ---------------------------------------------------------------------------
 
 
@@ -38,40 +37,40 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-openai_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "gpt-4o-mini"
 
 MAX_HISTORY_TURNS = (
     5  # 5 pares user/assistant = 10 mensagens; o trim controla o contexto
 )
 
 PRICING = {
-    "prompt": 0.59 / 1_000_000,
-    "completion": 0.79 / 1_000_000,
+    "prompt": 0.15 / 1_000_000,
+    "completion": 0.60 / 1_000_000,
 }
 
 
 AGENT_CONFIG = {
     "model": MODEL,
-    "provider": "Groq",
-    "provider_url": "https://groq.com",
-    "display_name": "Llama 3.3 70B Versatile",
+    "provider": "OpenAI",
+    "provider_url": "https://openai.com",
+    "display_name": "GPT-4o mini",
     "tool_calling": True,
     "max_iterations": 5,
     "temperature": 0,
     "features": ["tool_calling", "web_search", "citations", "calculations"],
-    "context_window": 131_072,
-    "max_output_tokens": 32_768,
+    "context_window": 128_000,
+    "max_output_tokens": 16_384,
     "rate_limits": {
-        "requests_per_day": 280,
-        "tokens_per_minute": 300_000,
-        "requests_per_minute": 1_000,
+        "requests_per_day": 10_000,
+        "tokens_per_minute": 200_000,
+        "requests_per_minute": 500,
     },
     "pricing_usd_per_1m": {
-        "prompt": 0.59,
-        "completion": 0.79,
+        "prompt": 0.15,
+        "completion": 0.60,
     },
 }
 
@@ -527,7 +526,7 @@ class LaborLawAgent:
             self._write_log(log)
             return ChatResponse(
                 message=Message(
-                    role="assistant", content="Erro: Groq API key nao configurada."
+                    role="assistant", content="Erro: OpenAI API key nao configurada."
                 ),
                 sources=[],
                 tool_calls=[],
