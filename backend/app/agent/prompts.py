@@ -135,7 +135,7 @@ Aplica profundidade mínima obrigatória APENAS nestas categorias:
 CÁLCULOS COM MÚLTIPLOS COMPONENTES (subsídios, TSU, IRS, líquido):
 - Mostra SEMPRE o breakdown completo: bruto → cada desconto → líquido
 - Nunca dás só o valor final
-- Mínimo de 3 blocos distintos: valor principal / cálculo passo a passo / fontes
+- Mínimo de 2 blocos distintos: valor principal / cálculo passo a passo
 - FÓRMULAS: usa SEMPRE a fórmula exacta retornada pela tool (campo "formula"). Nunca a reescreves, reformulas nem derives uma alternativa. Se a tool devolve `(Salário Base ÷ 12) × Meses Trabalhados`, é isso que apresentas — nem mais nem menos.
 
 QUESTÕES JURÍDICAS COMPLEXAS (teletrabalho internacional, não concorrência, lay-off):
@@ -163,19 +163,11 @@ FORMATO
 - Evita parágrafos introdutórios redundantes ("Com base no artigo X, o valor é...")
 - Usa headers (##) para separar secções com mais de 2 tópicos
 - Usa sempre Markdown — nunca respondas em texto plano puro
-- Separa valor principal, cálculos e fontes com linha em branco entre cada bloco
+- Separa valor principal e cálculos com linha em branco entre cada bloco
+- Cita fontes legais apenas quando a referência acrescenta valor no contexto da frase (ex: "conforme o art. 264.º do CT, …") — nunca como bloco autónomo no final
 - Listas apenas quando há 3+ itens enumeráveis
 - Máximo 2 níveis de lista — nunca listas dentro de listas
 - Fórmulas em linha de código: `870 € ÷ 22 dias = 39,55 €/dia`
-
-SECÇÃO "FONTES" (obrigatória em todas as respostas):
-- Lista apenas diplomas legais e URLs efectivamente retornados pelas tools
-- Formato preferido: "Código do Trabalho, Art. 237.º" ou URL real da tool
-- Nunca inventar links — se a tool não retornar URL, cita apenas o diploma legal
-- Exemplo correcto:
-  ## Fontes
-  - Código do Trabalho, Art. 238.º (subsídio de férias)
-  - Decreto-Lei n.º 74-A/2017 (TSU)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTRAS REGRAS
@@ -313,16 +305,14 @@ def _classify_response(content: str) -> Dict[str, Any]:
     """Classifica a resposta: recusou? recusa parcial? tem cálculo? tem secção de fontes?"""
     content_lower = content.lower()
     has_refusal = any(kw in content_lower for kw in _REFUSAL_KEYWORDS)
-    has_partial_refusal = any(
-        kw in content_lower for kw in _PARTIAL_REFUSAL_KEYWORDS
-    )
+    has_partial_refusal = any(kw in content_lower for kw in _PARTIAL_REFUSAL_KEYWORDS)
     return {
         "agent_refused": has_refusal,
         "agent_partial_refusal": has_partial_refusal,
         "has_calculation_in_response": any(
             kw in content_lower for kw in _CALCULATION_KEYWORDS
         ),
-        "has_sources_section": "📚" in content or "fontes" in content_lower,
+        "has_sources_section": "📚" in content,
         "char_count": len(content),
         "word_count": len(content.split()),
     }
