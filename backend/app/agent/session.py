@@ -28,11 +28,43 @@ def _trim_history(messages: List[Message]) -> List[Message]:
     return messages[-max_messages:]
 
 
-def _build_openai_messages(messages: List[Message], system_prompt: str) -> List[Dict[str, Any]]:
-    """Constrói a lista de mensagens no formato OpenAI."""
+def _build_openai_messages(
+    messages: List[Message], system_prompt: str
+) -> List[Dict[str, Any]]:
+    """Constrói a lista de mensagens no formato OpenAI.
+
+    Mensagens com role='tool' requerem obrigatoriamente 'tool_call_id' no formato
+    OpenAI. Se o campo estiver ausente no histórico (bug latente em conversas multi-
+    turno), a API devolve 400. Esta função filtra pares inválidos para garantir que
+    o histórico enviado é sempre aceite pela API.
+    """
     openai_messages = [{"role": "system", "content": system_prompt}]
+
+    # Pré-passo: identificar tool_call_ids válidos presentes no histórico.
+    # Uma tool message só é válida se existir uma assistant message anterior
+    # com um tool_call que tenha o mesmo id.
+    valid_tool_call_ids: set = set()
     for msg in messages:
-        msg_dict = {"role": msg.role, "content": msg.content}
+        if msg.role == "assistant" and msg.tool_calls:
+            for tc in msg.tool_calls:
+                tc_id = (
+                    tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                )
+                if tc_id:
+                    valid_tool_call_ids.add(tc_id)
+
+    for msg in messages:
+        if msg.role == "tool":
+            # Descarta tool messages sem tool_call_id ou cujo id não tem
+            # assistant message correspondente — evita erro 400 da API.
+            if not msg.tool_call_id or msg.tool_call_id not in valid_tool_call_ids:
+                logging.warning(
+                    f"[session] tool message descartada — tool_call_id ausente ou órfão: "
+                    f"{msg.tool_call_id!r}"
+                )
+                continue
+
+        msg_dict: Dict[str, Any] = {"role": msg.role, "content": msg.content}
         if msg.tool_calls:
             msg_dict["tool_calls"] = msg.tool_calls
         if msg.tool_call_id:
@@ -40,13 +72,13 @@ def _build_openai_messages(messages: List[Message], system_prompt: str) -> List[
         if msg.name:
             msg_dict["name"] = msg.name
         openai_messages.append(msg_dict)
+
     return openai_messages
 
 
 def _calculate_cost(prompt_tokens: int, completion_tokens: int) -> float:
     return round(
-        prompt_tokens * PRICING["prompt"]
-        + completion_tokens * PRICING["completion"],
+        prompt_tokens * PRICING["prompt"] + completion_tokens * PRICING["completion"],
         6,
     )
 
