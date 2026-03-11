@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Gavel,
   CirclePlus,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
@@ -25,9 +26,17 @@ interface AgentInfo {
   tool_calling: boolean;
 }
 
+interface AgentUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('chat');
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+  const [agentUsage, setAgentUsage] = useState<AgentUsage | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const chatHook = useChat();
   const { sessionUsage, clearChat } = chatHook;
@@ -37,6 +46,18 @@ function App() {
       .then((res) => res.json())
       .then((data) => setAgentInfo(data))
       .catch(() => null);
+  }, []);
+
+  useEffect(() => {
+    const fetchUsage = () => {
+      fetch(`${API_URL}/agent/usage`)
+        .then((res) => res.json())
+        .then((data) => setAgentUsage(data))
+        .catch(() => null);
+    };
+    fetchUsage();
+    const interval = setInterval(fetchUsage, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleNewConversation = async () => {
@@ -126,11 +147,50 @@ function App() {
         </nav>
 
         {/* Bottom section */}
-        <div className="p-2 border-t border-slate-800 space-y-2">
-          {/* Token Usage */}
+        <div className="p-2 border-t border-slate-800 space-y-1.5">
+          {/* Total Agent Usage */}
           <div
             className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/20 border border-slate-700/50 h-14'
+              'rounded-lg bg-blue-950/30 border border-blue-800/30 transition-all',
+              sidebarCollapsed
+                ? 'flex items-center justify-center px-2 py-3'
+                : 'px-3 py-3'
+            )}
+            title={
+              sidebarCollapsed && agentUsage
+                ? `Total: ${agentUsage.total_tokens.toLocaleString()} tokens · $${agentUsage.estimated_cost_usd.toFixed(4)}`
+                : undefined
+            }
+          >
+            {sidebarCollapsed ? (
+              <Database size={13} className="text-blue-400" />
+            ) : (
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Database size={11} className="text-blue-400 flex-shrink-0" />
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium whitespace-nowrap">
+                    Total tokens
+                  </span>
+                </div>
+                <span className="text-slate-100 font-semibold tabular-nums text-base leading-none truncate">
+                  {agentUsage ? agentUsage.total_tokens.toLocaleString() : '—'}
+                </span>
+                <span className="text-blue-400 font-medium tabular-nums text-xs leading-none">
+                  {agentUsage
+                    ? `$${agentUsage.estimated_cost_usd.toFixed(4)}`
+                    : '—'}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Session Token Usage */}
+          <div
+            className={cn(
+              'rounded-lg bg-slate-800/20 border border-slate-700/50 transition-all',
+              sidebarCollapsed
+                ? 'flex items-center justify-center px-2 py-3'
+                : 'px-3 py-3'
             )}
             title={
               sidebarCollapsed
@@ -138,16 +198,20 @@ function App() {
                 : undefined
             }
           >
-            <Coins size={12} className="text-amber-400 flex-shrink-0" />
-            {!sidebarCollapsed && (
-              <div className="flex flex-col text-sm leading-tight min-w-0">
-                <span className="text-slate-200 font-medium tabular-nums truncate">
-                  {sessionUsage.total_tokens.toLocaleString()}{' '}
-                  <span className="text-slate-500 font-normal">
-                    used tokens
+            {sidebarCollapsed ? (
+              <Coins size={13} className="text-amber-400" />
+            ) : (
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Coins size={11} className="text-amber-400 flex-shrink-0" />
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium whitespace-nowrap">
+                    Chat tokens
                   </span>
+                </div>
+                <span className="text-slate-100 font-semibold tabular-nums text-base leading-none truncate">
+                  {sessionUsage.total_tokens.toLocaleString()}
                 </span>
-                <span className="text-amber-400 font-medium tabular-nums">
+                <span className="text-amber-400 font-medium tabular-nums text-xs leading-none">
                   ${sessionUsage.estimated_cost_usd.toFixed(4)}
                 </span>
               </div>
