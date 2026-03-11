@@ -146,17 +146,17 @@ def search_irs_tables(
     dependents: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Consulta tabelas de retenção IRS. Calcula taxa local se income+marital_status fornecidos,
+    Consulta tabelas de retenção IRS.
+    Calcula taxa local se income+marital_status fornecidos,
     complementado por busca em info.portaldasfinancas.gov.pt para contexto atualizado.
     """
-    if year not in [2024, 2025]:
+    if year != 2025:
         return {
             "success": False,
-            "error": f"Tabelas disponíveis para 2024 e 2025. Solicitado: {year}",
+            "error": f"Tabelas disponíveis apenas para 2025. Solicitado: {year}",
             "year": year,
         }
 
-    tables = IRS_TABLES_2025
     result: Dict[str, Any] = {
         "success": True,
         "year": year,
@@ -173,25 +173,26 @@ def search_irs_tables(
         ],
     }
 
-    # Cálculo local da taxa se temos os dados necessários
-    if income and marital_status and marital_status in tables:
-        for min_val, max_val, rate in tables[marital_status]:
+    if income and marital_status and marital_status in IRS_TABLES_2025:
+        for min_val, max_val, rate in IRS_TABLES_2025[marital_status]:
             if min_val <= income < max_val:
                 result["tax_rate"] = rate
                 result["tax_amount"] = round(income * rate, 2)
                 break
 
         if dependents and dependents > 0:
-            deduction = dependents * result["deduction_per_dependent"]
-            result["dependent_deduction"] = round(deduction, 2)
+            deduction = round(dependents * result["deduction_per_dependent"], 2)
+            result["dependent_deduction"] = deduction
             if result.get("tax_amount"):
                 result["final_tax_amount"] = max(
                     0, round(result["tax_amount"] - deduction, 2)
                 )
 
-    # Complementa com busca web para contexto e citação
-    query = f"tabelas retenção IRS {year} trabalhadores dependentes"
-    web = _tavily_search(query, DOMAINS_IRS, max_results=2)
+    web = _tavily_search(
+        f"tabelas retenção IRS {year} trabalhadores dependentes",
+        DOMAINS_IRS,
+        max_results=2,
+    )
     if web.get("results"):
         result["web_context"] = web["results"]
 
