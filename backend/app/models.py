@@ -22,7 +22,7 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     """Request para o endpoint de chat."""
 
-    messages: List[Message]
+    message: Message
     stream: bool = False
 
 
