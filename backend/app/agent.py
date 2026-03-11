@@ -37,8 +37,9 @@ openai_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 MODEL = "moonshotai/kimi-k2-instruct"
 
-MAX_HISTORY_TURNS = 5  # 5 pares user/assistant = 10 mensagens
-MAX_CONVERSATION_TURNS = 3  # bloqueia a 4ª pergunta
+MAX_HISTORY_TURNS = (
+    5  # 5 pares user/assistant = 10 mensagens; o trim controla o contexto
+)
 
 PRICING = {
     "prompt": 0.59 / 1_000_000,
@@ -354,29 +355,8 @@ class LaborLawAgent:
         call_prompt_tokens = 0
         call_completion_tokens = 0
 
-        # Bloqueia se o utilizador ultrapassou o limite de turnos (contado antes do trim)
-        user_turns = sum(1 for m in messages if m.role == "user")
-        if user_turns > MAX_CONVERSATION_TURNS:
-            logging.info(
-                f"[{request_id}] conversation limit reached: {user_turns} turnos do utilizador "
-                f"(máx={MAX_CONVERSATION_TURNS})"
-            )
-            return ChatResponse(
-                message=Message(
-                    role="assistant",
-                    content=(
-                        "Atingiste o limite de perguntas desta conversa. "
-                        "Por favor, inicia uma nova conversa para continuar. 🔄"
-                    ),
-                ),
-                sources=[],
-                tool_calls=[],
-                response_time_ms=(time.time() - start_time) * 1000,
-                usage=TokenUsage(),
-                execution_log={},
-            )
-
         # Trunca o histórico para os últimos MAX_HISTORY_TURNS pares
+        user_turns = sum(1 for m in messages if m.role == "user")
         original_count = len(messages)
         messages = _trim_history(messages)
         trimmed_count = original_count - len(messages)
@@ -412,7 +392,6 @@ class LaborLawAgent:
                 **question_meta,
                 # Turno actual do utilizador nesta conversa (antes do trim)
                 "conversation_turn": user_turns,
-                "conversation_turn_limit": MAX_CONVERSATION_TURNS,
                 # Contagem original (antes do trim) e efectiva (após trim)
                 "history_messages_received": original_count - 1,
                 "history_messages_sent": len(messages) - 1,
