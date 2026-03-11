@@ -263,7 +263,7 @@ function App() {
             <span className="text-xs text-slate-400">
               {activeTab === 'chat'
                 ? 'Agente Q&A · Direito Laboral Português'
-                : 'Painel de Avaliação'}
+                : 'Painel de testes'}
             </span>
           </div>
           {agentInfo && (
