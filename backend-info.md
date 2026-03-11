@@ -1,6 +1,6 @@
 # Relatorio Tecnico: Agente Q&A de Direito Laboral Portugues
 
-**HomoDeus AI Engineer Challenge 2025**
+**AI Engineer Challenge**
 
 ---
 

@@ -228,10 +228,4 @@ npm run dev
 └── README.md
 ```
 
-## Licenca
-
-MIT License - Desenvolvido para o HomoDeus Challenge 2025.
-
----
-
 **Nota**: Este agente e um demonstrador tecnico. Para aconselhamento juridico especifico, consulte um advogado especializado.

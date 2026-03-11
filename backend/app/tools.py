@@ -3,7 +3,7 @@
 """
 Tools para o agente de direito laboral português.
 
-Estratégias de retrieval (alinhadas ao challenge):
+Estratégias de retrieval:
   1. search_labor_law      → Código do Trabalho (portal.act.gov.pt, pgdlisboa.pt)
   2. search_irs_tables     → Tabelas IRS (info.portaldasfinancas.gov.pt)
   3. search_social_security→ TSU / Seg. Social (diariodarepublica.pt, seg-social.pt)

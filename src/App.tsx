@@ -70,7 +70,7 @@ function App() {
           {!sidebarCollapsed && (
             <div className="overflow-hidden">
               <span className="text-sm font-semibold text-slate-100 block leading-tight whitespace-nowrap">
-                HomoDeus
+                AI Engineer
               </span>
               <span className="text-[10px] text-slate-500 whitespace-nowrap">
                 Challenge 2025
