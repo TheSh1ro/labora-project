@@ -75,10 +75,11 @@ async def chat(request: ChatRequest):
     """
     Endpoint principal de chat.
 
-    Recebe uma lista de mensagens e retorna a resposta do agente.
+    Recebe a nova mensagem do utilizador e devolve a resposta do agente.
+    O histórico da conversa é mantido no servidor até DELETE /session.
     """
     try:
-        response = await agent.chat(messages=request.messages, stream=request.stream)
+        response = await agent.chat(user_message=request.message, stream=request.stream)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no processamento: {str(e)}")
@@ -124,10 +125,13 @@ async def agent_usage():
     return agent.get_session_usage()
 
 
-@app.delete("/agent/usage")
-async def reset_agent_usage():
-    """Reinicia os contadores de tokens da sessao."""
-    agent.reset_session_usage()
+@app.delete("/session")
+async def reset_session():
+    """
+    Inicia uma nova conversa: limpa o histórico de mensagens da sessão activa.
+    Os contadores de tokens acumulados são preservados até ao reinício do servidor.
+    """
+    agent.reset_session()
     return {"status": "reset"}
 
 
