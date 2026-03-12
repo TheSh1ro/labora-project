@@ -2,7 +2,11 @@
 
 Agente conversacional pronto para producao que responde a questoes sobre direito laboral e processamento salarial portugues, usando pesquisa web em tempo real e tool calling estruturado.
 
-> Desenvolvido para o **HomoDeus AI Engineer Challenge 2025**
+
+## Interface
+
+![Avaliação de Desempenho](docs/preview/Chat.png)
+![Chat Interface](docs/preview/Desempenho.png)
 
 ## Funcionalidades
 
@@ -31,8 +35,8 @@ O agente usa o modelo **`gpt-4o-mini`** via [OpenAI API](https://openai.com), co
 ### 1. Clone e Instale
 
 ```bash
-git clone <repository-url>
-cd homodeus-app-v1
+git clone https://github.com/TheSh1ro/labora-project
+cd labora-app
 ```
 
 ### 2. Configure as Variaveis de Ambiente
@@ -40,7 +44,7 @@ cd homodeus-app-v1
 ```bash
 # Backend
 cp backend/.env.example backend/.env
-# Edite backend/.env com suas API keys (OPENAI_API_KEY e TAVILY_API_KEY)
+# Edite backend/.env com suas API keys ([OPENAI_API_KEY](https://platform.openai.com/settings/organization/api-keys) e [TAVILY_API_KEY](https://app.tavily.com/home))
 
 # Frontend
 cp .env.example .env
@@ -203,7 +207,7 @@ npm run dev
 
 9. **Triagem de Ambito e Recusa Parcial**: O system prompt instrui o modelo a classificar cada sub-questao como in-scope ou out-of-scope antes de qualquer tool call. Perguntas mistas recebem uma recusa parcial estruturada: responde as componentes in-scope com profundidade completa e recusa explicitamente as out-of-scope com recomendacao de advogado especializado.
 
-10. **Guard de Grounding**: Na iteracao 0, se o modelo responder sem chamar tools em perguntas que exigem dados factuais (salario, calculos, legislacao), o agente forca automaticamente um retry com instrucao explicita para usar as tools disponíveis.
+10. **Guard de Grounding**: Na iteracao 0, se o modelo responder sem chamar tools em perguntas que exigem dados factuais (salario, calculos, legislacao), o agente força automaticamente um retry com instrucao explicita para usar as tools disponíveis.
 
 ## Estrutura do Projeto
 
@@ -244,5 +248,3 @@ npm run dev
 ├── package.json
 └── README.md
 ```
-
-**Nota**: Este agente e um demonstrador tecnico. Para aconselhamento juridico especifico, consulte um advogado especializado.
