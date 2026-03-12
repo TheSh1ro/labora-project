@@ -25,7 +25,7 @@ Agente conversacional pronto para producao que responde a questoes sobre direito
 ### Pre-requisitos
 
 - Node.js 20+
-- Python 3.9+
+- Python 3.12.6
 - API Keys: OpenAI e Tavily
 
 ### Modelo LLM
