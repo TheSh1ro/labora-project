@@ -7,13 +7,14 @@ Agente conversacional pronto para producao que responde a questoes sobre direito
 ## Funcionalidades
 
 - **Camada de Retrieval**: Pesquisa web em fontes oficiais portuguesas (Portal das Financas, CITE, DRE, Codigo do Trabalho, pgdlisboa.pt)
-- **Agente Conversacional**: Interface Q&A multi-turno com arquitetura de tool calling (limite de 3 turnos por conversa)
-- **Suite de Avaliacao**: Harness de avaliacao com 12 casos de teste e metricas de qualidade
-- **Citacoes de Fontes**: Cada resposta inclui URLs das fontes consultadas
+- **Agente Conversacional**: Interface Q&A multi-turno com arquitetura de tool calling
+- **Suite de Avaliacao**: Harness de avaliacao com 13 casos de teste e metricas de qualidade
+- **Citacoes de Fontes**: Cada resposta inclui URLs das fontes consultadas (fontes usadas vs. todas as fontes retornadas)
 - **Calculos Especializados**: Subsidios, TSU, IRS com formulas e passo a passo
 - **Wide Event Logging**: Cada pedido gera um log JSON estruturado em `backend/logs/` com tempos, tokens, ferramentas e fontes consultadas
 - **Gestao de Historico**: Trim automatico do historico para os ultimos 5 pares (10 mensagens)
 - **Classificacao de Perguntas**: Detecao automatica de topicos e intencao de calculo antes de chamar o LLM
+- **Triagem de Ambito**: Detecao de componentes out-of-scope com recusa parcial estruturada para perguntas mistas
 
 ## Quick Start
 
@@ -21,11 +22,11 @@ Agente conversacional pronto para producao que responde a questoes sobre direito
 
 - Node.js 20+
 - Python 3.9+
-- API Keys: Groq e Tavily
+- API Keys: OpenAI e Tavily
 
 ### Modelo LLM
 
-O agente usa o modelo **`moonshotai/kimi-k2-instruct`** (Kimi K2 Instruct) via [Groq API](https://groq.com), com suporte a tool calling nativo.
+O agente usa o modelo **`gpt-4o-mini`** via [OpenAI API](https://openai.com), com suporte a tool calling nativo.
 
 ### 1. Clone e Instale
 
@@ -39,7 +40,7 @@ cd homodeus-app-v1
 ```bash
 # Backend
 cp backend/.env.example backend/.env
-# Edite backend/.env com suas API keys (GROQ_API_KEY e TAVILY_API_KEY)
+# Edite backend/.env com suas API keys (OPENAI_API_KEY e TAVILY_API_KEY)
 
 # Frontend
 cp .env.example .env
@@ -90,7 +91,7 @@ npm run dev
 │                        BACKEND (FastAPI)                         │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │              Agente Conversacional                      │    │
-│  │       (Groq / Kimi K2 Instruct / Tool Calling)          │    │
+│  │          (OpenAI / GPT-4o mini / Tool Calling)          │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                              │                                   │
 │        ┌─────────────────────┼─────────────────────┐             │
@@ -135,7 +136,7 @@ npm run dev
 | Graceful Refusal | Recusa apropriada quando nao sabe | 20% |
 | Response Time | Tempo de resposta < 10s | 10% |
 
-### Casos de Teste (12)
+### Casos de Teste (13)
 
 | ID | Categoria | Pergunta |
 |----|-----------|----------|
@@ -149,6 +150,7 @@ npm run dev
 | advanced_003 | Avancado | Condicoes para lay-off |
 | limit_001 | Limit | Teletrabalho de Espanha |
 | limit_002 | Limit | Clausula de nao concorrencia de 3 anos |
+| limit_003 | Limit | Despedimento + nao concorrencia + compensacao para trabalhador em Espanha (recusa parcial) |
 | extra_001 | Intermedio | Subsidio de Natal para trabalhador contratado em julho com 2000€ |
 | extra_002 | Intermedio | Valor liquido de trabalhador com 1800€ brutos |
 
@@ -169,12 +171,12 @@ npm run dev
 |----------|--------|-----------|
 | `/` | GET | Health check |
 | `/health` | GET | Health check detalhado |
-| `/chat` | POST | Enviar mensagem  |
+| `/chat` | POST | Enviar mensagem |
+| `/session` | DELETE | Reiniciar conversa (limpa historico) |
 | `/evaluation/cases` | GET | Listar casos de teste |
 | `/evaluation/run` | POST | Executar avaliacao |
 | `/agent/info` | GET | Informacoes sobre o agente e modelo |
 | `/agent/usage` | GET | Consumo acumulado de tokens e custo estimado |
-| `/agent/usage` | DELETE | Reiniciar contadores de tokens |
 | `/tools` | GET | Listar tools disponiveis |
 | `/sources` | GET | Listar fontes oficiais |
 | `/logs` | GET | Listar logs de execucao disponiveis |
@@ -185,19 +187,23 @@ npm run dev
 
 1. **Tool Calling vs Prompting**: Arquitetura de tool calling estruturada em vez de prompting de turno unico para maior controlo, rastreabilidade e testabilidade.
 
-2. **Groq + Kimi K2 Instruct**: Uso da Groq API com o modelo `moonshotai/kimi-k2-instruct` para inferencia rapida com suporte nativo a tool calling.
+2. **OpenAI GPT-4o mini**: Uso da OpenAI API com o modelo `gpt-4o-mini` para inferencia rapida com suporte nativo a tool calling e custo-beneficio.
 
-3. **Fontes Oficiais**: Integracao com Tavily API para pesquisa em dominios oficiais portugueses, garantindo factualidade. Cada tool tem dominios dedicados sem sobreposicao.
+3. **Fontes Oficiais**: Integracao com Tavily API para pesquisa em dominios oficiais portugueses, garantindo factualidade. Cada tool tem dominios dedicados sem sobreposicao. Resultados limitados a 3 por chamada para evitar truncagem a meio de artigos relevantes.
 
 4. **Calculos Localizados**: Formulas de calculo implementadas localmente para garantir precisao matematica. `search_irs_tables` e hibrida: calcula localmente com tabelas IRS 2025 e complementa com pesquisa web.
 
-5. **Avaliacao Automatizada**: Suite de avaliacao com metricas quantitativas para medir qualidade do agente.
+5. **Avaliacao Automatizada**: Suite de avaliacao com metricas quantitativas para medir qualidade do agente. Normalizacao de separadores decimais e de milhar na comparacao de topicos esperados vs. resposta.
 
-6. **Wide Event Logging**: Cada request gera um ficheiro JSON em `backend/logs/` com todos os detalhes da execucao (tokens, tempos por iteracao, ferramentas chamadas, fontes consultadas, custo estimado). Os logs sao expostos via API (`/logs`).
+6. **Wide Event Logging**: Cada request gera um ficheiro JSON em `backend/logs/` com todos os detalhes da execucao (tokens, tempos por iteracao, ferramentas chamadas, fontes consultadas, custo estimado, classificacao da resposta). Os logs sao expostos via API (`/logs`).
 
-7. **Limites de Conversa e Historico**: O agente bloqueia a 4ª pergunta da mesma conversa (`MAX_CONVERSATION_TURNS=3`) e faz trim automatico do historico para os ultimos 5 pares (`MAX_HISTORY_TURNS=5`), controlando o tamanho do contexto enviado ao LLM.
+7. **Gestao de Historico**: Trim automatico do historico para os ultimos 5 pares (`MAX_HISTORY_TURNS=5`), controlando o tamanho do contexto enviado ao LLM.
 
-8. **Classificacao de Perguntas**: Antes de chamar o LLM, cada pergunta e classificada automaticamente em topicos (salario, ferias, IRS, TSU, despedimento, etc.) e detectada a intencao de calculo. Esta informacao e incluida no wide event log.
+8. **Classificacao de Perguntas**: Antes de chamar o LLM, cada pergunta e classificada automaticamente em topicos (salario, ferias, IRS, TSU, despedimento, etc.) e detectada a intencao de calculo. A resposta final e igualmente classificada (recusa, recusa parcial, calculo, fontes). Toda esta informacao e incluida no wide event log.
+
+9. **Triagem de Ambito e Recusa Parcial**: O system prompt instrui o modelo a classificar cada sub-questao como in-scope ou out-of-scope antes de qualquer tool call. Perguntas mistas recebem uma recusa parcial estruturada: responde as componentes in-scope com profundidade completa e recusa explicitamente as out-of-scope com recomendacao de advogado especializado.
+
+10. **Guard de Grounding**: Na iteracao 0, se o modelo responder sem chamar tools em perguntas que exigem dados factuais (salario, calculos, legislacao), o agente forca automaticamente um retry com instrucao explicita para usar as tools disponíveis.
 
 ## Estrutura do Projeto
 
@@ -205,12 +211,23 @@ npm run dev
 .
 ├── backend/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── agent.py
-│   │   ├── tools.py
-│   │   ├── models.py
-│   │   └── evaluation.py
-│   ├── logs/           # Wide event logs por request (JSON)
+│   │   ├── agent/
+│   │   │   ├── core.py        # Loop de tool calling e orquestracao
+│   │   │   ├── prompts.py     # System prompt, AGENT_CONFIG, classificadores
+│   │   │   ├── session.py     # Gestao de historico e contadores de tokens
+│   │   │   └── sources.py     # Pipeline de fontes (recency, dedup, rerank)
+│   │   ├── evaluation/
+│   │   │   ├── cases.py       # Casos de teste e funcoes de avaliacao
+│   │   │   └── harness.py     # Execucao da suite de avaliacao
+│   │   ├── tools/
+│   │   │   ├── calculations.py # Calculos locais (subsidios, TSU, salario minimo)
+│   │   │   ├── data.py         # Dados estaticos e cliente Tavily
+│   │   │   └── search.py       # Tools de pesquisa (Tavily)
+│   │   ├── main.py            # FastAPI app e endpoints
+│   │   └── models.py          # Modelos Pydantic
+│   ├── logs/                  # Wide event logs por request (JSON)
+│   ├── tests/
+│   │   └── test_sources.py
 │   ├── requirements.txt
 │   └── .env.example
 ├── src/

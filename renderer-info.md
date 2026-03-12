@@ -4,7 +4,7 @@ Tailwind CSS has been set up with the shadcn theme
 
 Setup complete: /mnt/okcomputer/output/app
 
-Components (40+):
+Components (50+):
   accordion, alert-dialog, alert, aspect-ratio, avatar, badge, breadcrumb,
   button-group, button, calendar, card, carousel, chart, checkbox, collapsible,
   command, context-menu, dialog, drawer, dropdown-menu, empty, field, form,
@@ -18,8 +18,10 @@ Usage:
   import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 
 Structure:
-  src/sections/        Page sections
+  src/components/ui/   shadcn/ui primitives
+  src/components/      App components (Chat, Message, ToolCall, SourcesPanel, EvaluationDashboard)
   src/hooks/           Custom hooks
+  src/lib/             Shared utilities (utils.ts)
   src/types/           Type definitions
   src/App.css          Styles specific to the Webapp
   src/App.tsx          Root React component

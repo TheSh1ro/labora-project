@@ -10,13 +10,13 @@ Este documento apresenta o desenvolvimento de um agente conversacional pronto pa
 
 ### Resultados Principais
 
-- **12 casos de teste** implementados cobrindo 4 categorias de complexidade
+- **13 casos de teste** implementados cobrindo 4 categorias de complexidade
 - **7 tools especializadas** para pesquisa e calculos
-- **Arquitetura de tool calling** com Groq Functions
+- **Arquitetura de tool calling** com OpenAI Functions
 - **Interface web moderna** com React + TypeScript
 - **Suite de avaliacao** com metricas quantitativas
 - **Wide event logging** estruturado por request em `backend/logs/`
-- **Gestao de contexto**: limite de 3 turnos por conversa e trim automatico de historico
+- **Gestao de contexto**: trim automatico de historico (ultimos 5 pares user/assistant)
 
 ---
 
@@ -28,7 +28,7 @@ Este documento apresenta o desenvolvimento de um agente conversacional pronto pa
 |------------|------------|---------------|
 | Frontend | React + TypeScript + Vite | Tipagem estatica, performance, ecossistema maduro |
 | Backend | Python + FastAPI | Async nativo, OpenAPI automatico, leve |
-| LLM | Groq / Kimi K2 Instruct (`moonshotai/kimi-k2-instruct`) | Inferencia rapida, suporte nativo a tool calling, custo-beneficio |
+| LLM | OpenAI / GPT-4o mini (`gpt-4o-mini`) | Inferencia rapida, suporte nativo a tool calling, custo-beneficio |
 | Web Search | Tavily API | Foco em fontes oficiais, resultados estruturados |
 | UI | Tailwind CSS + shadcn/ui | Componentes acessiveis, customizaveis |
 
@@ -56,9 +56,8 @@ Implementei uma estrategia hibrida com **dominios dedicados por tool** (sem sobr
 
 ### 2.4 Gestao de Contexto e Limites
 
-O agente implementa dois mecanismos para controlar o tamanho do contexto enviado ao LLM:
+O agente implementa um mecanismo de trim automatico para controlar o tamanho do contexto enviado ao LLM:
 
-- **`MAX_CONVERSATION_TURNS = 3`**: Bloqueia a resposta a partir da 4ª pergunta do utilizador na mesma conversa, devolvendo mensagem de redirecionamento para nova sessao
 - **`MAX_HISTORY_TURNS = 5`**: Mantém apenas os ultimos 5 pares user/assistant (10 mensagens) no contexto enviado ao LLM
 
 ### 2.5 Classificacao de Perguntas
@@ -69,6 +68,23 @@ Antes de chamar o LLM, cada pergunta e classificada automaticamente por `_classi
 - **Intencao de calculo**: detecao de keywords como "quanto", "calcul", "taxa", "liquido"
 
 Esta classificacao e incluida no wide event log e permite auditoria do comportamento do agente.
+
+A resposta final e tambem classificada por `_classify_response`:
+
+- **`agent_refused`**: deteta recusa total via `_REFUSAL_KEYWORDS`
+- **`agent_partial_refusal`**: deteta recusa parcial via `_PARTIAL_REFUSAL_KEYWORDS`
+- **`has_calculation_in_response`**: deteta presenca de formula ou valor calculado
+- **`has_sources_section`**: deteta presenca do icone 📚 na resposta
+
+Estes campos sao incluidos no campo `output` do wide event log.
+
+### 2.6 Triagem de Ambito e Recusa Parcial
+
+Antes de qualquer tool call, o system prompt instrui o modelo a executar **PASSO 0 — TRIAGEM DE AMBITO**: cada sub-questao e classificada como in-scope (coberta pelas 3 fontes disponiveis) ou out-of-scope (exige legislacao externa, direito estrangeiro ou conflito de leis).
+
+- **Todas out-of-scope** → recusa completa, recomenda advogado
+- **Mix in/out** → recusa parcial estruturada: responde as componentes in-scope com profundidade habitual e recusa explicitamente as out-of-scope num bloco formatado "Fora do ambito das fontes disponiveis"
+- **Todas in-scope** → procede ao routing normal
 
 ---
 
@@ -121,19 +137,20 @@ Calculo local por escaloes mensais (solteiro, casado-unico, casado-dois), com de
 
 O system prompt foi elaborado para:
 - Garantir respostas em portugues europeu
-- Exigir uso das tools antes de responder (nunca de memoria)
+- Exigir uso das tools antes de responder (nunca de memoria), com guard de grounding que forca retry na iteracao 0 se o modelo responder sem chamar tools em perguntas que exigem dados factuais
 - Instruir recusa graciosa quando nao ha certeza
+- Instruir recusa parcial estruturada quando a pergunta mistura componentes in-scope e out-of-scope
 - Estruturar respostas com Markdown (headers, negrito, formulas em linha de codigo)
-- Impor formato consistente: valor principal na primeira linha, calculos a seguir, secao "Fontes" no final
+- Impor formato consistente: valor principal na primeira linha, calculos a seguir, fontes citadas em linha
 
 ### 3.4 Gestao de Tokens e Custo
 
-O agente acumula e expoe o consumo de tokens por sessao via `/agent/usage`, calculando o custo estimado com base nos precos Groq:
+O agente acumula e expoe o consumo de tokens por sessao via `/agent/usage`, calculando o custo estimado com base nos precos OpenAI:
 
 | Tipo | Preco |
 |------|-------|
-| Prompt tokens | 0,59 USD / 1M tokens |
-| Completion tokens | 0,79 USD / 1M tokens |
+| Prompt tokens | 0,15 USD / 1M tokens |
+| Completion tokens | 0,60 USD / 1M tokens |
 
 Os contadores podem ser reiniciados via `DELETE /agent/usage`.
 
@@ -143,8 +160,8 @@ Cada request gera um ficheiro JSON em `backend/logs/` com o seguinte conteudo:
 
 - `request_id`, `timestamp`, `model`
 - `input`: mensagem, topicos detectados, intencao de calculo, historico enviado/recebido
-- `iterations[]`: por cada iteracao do loop de tool calling — tool chamada, argumentos, resultado, tempo de execucao, fontes encontradas, resumo de calculo
-- `output`: finish_reason, numero de fontes, sequencia de tools, dominios consultados
+- `iterations[]`: por cada iteracao do loop de tool calling — tool chamada, argumentos, resultado, tempo de execucao, fontes encontradas, resumo de calculo (`computed_summary`), URLs de fontes (`source_urls`), flag de truncagem de resultados Tavily
+- `output`: finish_reason, numero de fontes, sequencia de tools, ferramentas unicas usadas (`tools_used`), dominios consultados, preview da resposta, classificacao da resposta (refused, partial_refusal, has_calculation, has_sources)
 - `usage`: prompt_tokens, completion_tokens, custo estimado
 - `timing_ms`: tempo total, tempo LLM, tempo tools, por iteracao
 
@@ -177,6 +194,7 @@ Os logs sao listados e consultados via `/logs` e `/logs/{request_id}`. A respost
 | advanced_003 | Avancado | Condicoes para lay-off |
 | limit_001 | Limit | Teletrabalho de Espanha |
 | limit_002 | Limit | Clausula de nao concorrencia de 3 anos |
+| limit_003 | Limit | Despedimento + nao concorrencia + compensacao para trabalhador em Espanha (recusa parcial) |
 | extra_001 | Intermedio | Subsidio de Natal para trabalhador contratado em julho com 2000€ |
 | extra_002 | Intermedio | Valor liquido de trabalhador com 1800€ brutos |
 
@@ -186,7 +204,7 @@ Os logs sao listados e consultados via `/logs` e `/logs/{request_id}`. A respost
 
 ### 5.1 Execucao da Suite
 
-A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de teste.
+A suite de avaliacao foi executada com sucesso, processando todos os 13 casos de teste.
 
 ### 5.2 Metricas Obtidas
 
@@ -214,6 +232,7 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 
 **Solucao**:
 - Tool calling obrigatorio para informacoes factuais (nunca responde de memoria)
+- Guard de grounding na iteracao 0: se o modelo responder sem chamar tools em perguntas que exigem dados factuais, o agente forca um retry com instrucao explicita
 - Pesquisa web em fontes oficiais com dominios dedicados por tool
 - Citacao de URLs em todas as respostas
 
@@ -236,13 +255,15 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 - Tools sincronas executadas em `asyncio.to_thread` para nao bloquear o event loop
 - Timeout adequado (30s)
 - Feedback visual de loading
+- Resultados Tavily limitados a 3 por chamada (evita truncagem a meio de artigo relevante)
 
-### 6.4 Desafio: Estabilidade no Free Tier do Groq
+### 6.4 Desafio: Estabilidade da API
 
-**Problema**: Chamadas paralelas de tools causavam erros no free tier.
+**Problema**: Chamadas com tool calling podem falhar com erros 400 em cenarios de edge case.
 
 **Solucao**:
 - `parallel_tool_calls=False` na configuracao do agente
+- Fallback automatico: se a API devolver erro 400 ou `tool_use_failed`, o agente retenta o pedido sem tools e devolve a resposta textual
 
 ### 6.5 Desafio: Crescimento do Contexto em Conversas Longas
 
@@ -250,7 +271,22 @@ A suite de avaliacao foi executada com sucesso, processando todos os 12 casos de
 
 **Solucao**:
 - `MAX_HISTORY_TURNS=5`: trim automatico do historico para os ultimos 5 pares
-- `MAX_CONVERSATION_TURNS=3`: limite de 3 perguntas por sessao; a 4ª e bloqueada com mensagem de redirecionamento
+
+### 6.6 Desafio: Perguntas Mistas (in-scope + out-of-scope)
+
+**Problema**: Perguntas que combinam direito laboral portugues com direito estrangeiro ou conflito de leis — o agente nao pode recusar tudo nem responder tudo.
+
+**Solucao**:
+- PASSO 0 no system prompt: triagem obrigatoria de ambito por sub-questao antes de qualquer tool call
+- Formato de recusa parcial estruturado: responde as componentes in-scope com profundidade completa, recusa as componentes out-of-scope com bloco formatado e recomendacao de advogado especializado
+- `_PARTIAL_REFUSAL_KEYWORDS` e `_classify_response` permitem auditar no log se a recusa parcial foi ativada
+
+### 6.7 Desafio: Comparacao de Topicos com Formatacao Variavel
+
+**Problema**: A avaliacao heuristica falhava ao comparar topicos como "23.75%" (esperado) com "23,75%" (resposta em portugues europeu).
+
+**Solucao**:
+- `_normalize()` em `cases.py`: normaliza separadores decimais (virgula→ponto), de milhar (ponto→nenhum) e simbolo de moeda antes de comparar topicos esperados com a resposta
 
 ---
 
@@ -285,8 +321,9 @@ O agente Q&A de Direito Laboral Portugues demonstra uma implementacao robusta de
 - **Tool calling estruturado** com separacao clara de responsabilidades e dominios dedicados por fonte
 - **Pesquisa web em tempo real** em fontes oficiais portuguesas
 - **Calculos deterministas locais** com tabelas IRS 2025 e formulas do Codigo do Trabalho
+- **Triagem de ambito e recusa parcial** estruturada para perguntas mistas in/out-of-scope
 - **Wide event logging** para rastreabilidade e auditoria completa por request
-- **Gestao de contexto** com limite de conversa e trim de historico
+- **Gestao de contexto** com trim de historico
 - **Suite de avaliacao** com metricas quantitativas
 - **Interface moderna** e responsiva
 
@@ -302,7 +339,7 @@ A arquitetura esta preparada para escalar e receber novas funcionalidades. A sui
 4. Portaria n.º 1/2025 — Salario Minimo Nacional (870 EUR)
 5. Lei n.º 110/2009 — Codigo dos Regimes Contributivos (TSU)
 6. Despacho n.º 236-A/2025 — Tabelas de Retencao IRS 2025
-7. Groq API — groq.com
+7. OpenAI API — openai.com
 8. Tavily API — tavily.com
 
 ---
