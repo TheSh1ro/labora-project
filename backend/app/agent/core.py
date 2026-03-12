@@ -38,16 +38,10 @@ from .session import (
     get_session_usage,
 )
 
-# ---------------------------------------------------------------------------
-# NOTE: gpt-4o suporta native structured tool calling via OpenAI API.
-# ---------------------------------------------------------------------------
-
-
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Diretório de logs (backend/logs/)
 LOGS_DIR = Path(__file__).parent.parent.parent / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
@@ -60,9 +54,9 @@ openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 MODEL = "gpt-4o-mini"
 
-# Tokens máximos de output — usa o valor central do AGENT_CONFIG para evitar
-# divergência entre a configuração declarada e o parâmetro efectivo da API.
-MAX_OUTPUT_TOKENS = AGENT_CONFIG["max_output_tokens"]  # 16_384
+# Usa o valor central do AGENT_CONFIG para evitar divergência entre configuração
+# declarada e o parâmetro efectivo da API.
+MAX_OUTPUT_TOKENS = AGENT_CONFIG["max_output_tokens"]
 
 
 def _extract_domain(url: str) -> Optional[str]:
@@ -131,11 +125,9 @@ def _extract_computed_summary(tool_name: str, result: Dict[str, Any]) -> Dict[st
 def _extract_source_urls(result: Dict[str, Any]) -> List[str]:
     """Extrai todas as URLs presentes no resultado de uma tool."""
     urls: List[str] = []
-    # Fontes explícitas (calculation tools)
     for item in result.get("sources", []):
         if isinstance(item, dict) and item.get("url"):
             urls.append(item["url"])
-    # Resultados de pesquisa Tavily
     for item in result.get("results", []):
         if isinstance(item, dict) and item.get("url"):
             urls.append(item["url"])
@@ -150,10 +142,9 @@ class LaborLawAgent:
         self.model = MODEL
         self.tools = TOOLS_SCHEMA
         self.tool_functions = TOOL_FUNCTIONS
-        # Token counters — persistem até reinício do servidor
+        # Persistem até reinício do servidor (não são reiniciados por reset_session)
         self._session_prompt_tokens = 0
         self._session_completion_tokens = 0
-        # Histórico da conversa activa — limpo por reset_session()
         self._session_messages: List[Message] = []
 
     def _calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
@@ -212,11 +203,9 @@ class LaborLawAgent:
         call_prompt_tokens = 0
         call_completion_tokens = 0
 
-        # Constrói contexto completo: histórico da sessão + nova mensagem do utilizador
         session_count = len(self._session_messages)
         all_messages = self._session_messages + [user_message]
 
-        # Trunca ao limite de MAX_HISTORY_TURNS pares
         original_count = len(all_messages)
         messages = _trim_history(all_messages)
         trimmed_count = original_count - len(messages)
@@ -230,15 +219,12 @@ class LaborLawAgent:
         user_text = user_message.content
         question_meta = _classify_question(user_text)
 
-        # --- Wide event: construído progressivamente, emitido uma vez no final ---
         log: Dict[str, Any] = {
             "request_id": request_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "model": self.model,
-            # Contexto da sessão no momento do pedido (tokens acumulados antes deste call)
             "session_tokens_before": self._session_prompt_tokens
             + self._session_completion_tokens,
-            # Configuração da chamada ao LLM
             "config": {
                 "temperature": 0,
                 "max_tokens": MAX_OUTPUT_TOKENS,
@@ -249,14 +235,10 @@ class LaborLawAgent:
             "input": {
                 "message": user_text,
                 **question_meta,
-                # Turno actual do utilizador nesta conversa
                 "conversation_turn": user_turns,
-                # Mensagens em sessão antes deste pedido (histórico servidor)
                 "session_messages_before": session_count,
-                # Mensagens enviadas ao LLM após trim (excluindo a actual do utilizador)
                 "history_messages_sent": len(messages) - 1,
                 "history_trimmed": trimmed_count,
-                # Contagem de mensagens por papel para perceber o contexto enviado
                 "history_by_role": {
                     role: sum(1 for m in messages if m.role == role)
                     for role in ("user", "assistant", "system", "tool")
@@ -268,8 +250,8 @@ class LaborLawAgent:
             "usage": {},
             "timing_ms": {
                 "total": 0,
-                "llm_total": 0,  # soma de todas as chamadas LLM
-                "tools_total": 0,  # soma de todas as execuções de tool
+                "llm_total": 0,
+                "tools_total": 0,
                 "per_iteration": [],
             },
         }
@@ -303,16 +285,15 @@ class LaborLawAgent:
                     "index": iteration + 1,
                     "tokens": {},
                     "llm_latency_ms": 0,
-                    "finish_reason": None,  # "tool_calls" | "stop" | "length"
+                    "finish_reason": None,
                     "fallback_used": False,
                     "fallback_reason": None,
-                    # Primeiros 300 chars do conteúdo textual gerado pelo modelo nesta
-                    # iteração (útil para debug de raciocínio intermédio antes de tool calls)
+                    # Primeiros 300 chars do conteúdo textual — útil para debug de
+                    # raciocínio intermédio antes de tool calls
                     "model_content_preview": None,
                     "tool_calls": [],
                 }
 
-                # --- Chamada LLM (com medição de latência isolada) ---
                 llm_start = time.time()
                 try:
                     response = await self.client.chat.completions.create(
@@ -341,7 +322,6 @@ class LaborLawAgent:
                 iter_log["llm_latency_ms"] = llm_ms
                 total_llm_ms += llm_ms
 
-                # Tokens desta iteração
                 if response.usage:
                     iter_prompt = response.usage.prompt_tokens
                     iter_completion = response.usage.completion_tokens
@@ -356,19 +336,15 @@ class LaborLawAgent:
                 choice = response.choices[0]
                 message = choice.message
                 iter_log["finish_reason"] = choice.finish_reason
-
-                # Raciocínio textual do modelo nesta iteração (pode existir mesmo com tool_calls)
                 iter_log["model_content_preview"] = (message.content or "")[
                     :300
                 ] or None
 
                 effective_tool_calls = message.tool_calls
 
-                # Guard de iteração 0: força tool call apenas quando a pergunta
-                # requer grounding em legislação ou cálculo concreto.
-                # Perguntas definitórias simples ("o que é X?") podem ser respondidas
-                # directamente pelo modelo — forçar uma tool call geraria latência e
-                # custo desnecessários sem melhorar a qualidade da resposta.
+                # Guard de iteração 0: perguntas definitórias simples ("o que é X?")
+                # podem ser respondidas directamente — forçar tool call geraria latência
+                # e custo desnecessários sem melhorar a qualidade da resposta.
                 _TOPICS_REQUIRING_GROUNDING = {
                     "salario",
                     "ferias",
@@ -404,7 +380,6 @@ class LaborLawAgent:
                     )
                     continue
 
-                # --- Resposta final (sem tool calls) ---
                 if not effective_tool_calls:
                     iter_log["elapsed_ms"] = round((time.time() - iter_start) * 1000)
                     log["iterations"].append(iter_log)
@@ -425,13 +400,11 @@ class LaborLawAgent:
                         ),
                     )
 
-                    # --- Pipeline de fontes: classify → deduplicate → rerank ---
                     processed_sources = process_sources(all_sources, user_text)
                     used_sources, _unused = extract_used_sources(
                         processed_sources, content
                     )
 
-                    # Domínios únicos consultados (extraídos das fontes processadas)
                     unique_domains = sorted(
                         {
                             d
@@ -441,19 +414,16 @@ class LaborLawAgent:
                         }
                     )
 
-                    # Enriquece output com contexto de negócio
                     log["output"] = {
                         "finish_reason": "completed",
                         "sources_returned": len(processed_sources),
                         "sources_used": len(used_sources),
                         "total_tool_calls": len(all_tool_calls),
-                        # Sequência ordenada de tools invocadas (permite ver o "raciocínio" do agente)
                         "tool_call_sequence": [tc.name for tc in all_tool_calls],
-                        # Nomes únicos de tools (sem duplicados), preservando ordem de 1ª ocorrência
+                        # dict.fromkeys preserva ordem de 1ª ocorrência sem duplicados
                         "tools_used": list(
                             dict.fromkeys(tc.name for tc in all_tool_calls)
                         ),
-                        # Lista detalhada das fontes com título e URL
                         "sources_detail": [
                             {
                                 "title": s.title,
@@ -464,9 +434,7 @@ class LaborLawAgent:
                             }
                             for s in processed_sources
                         ],
-                        # Domínios únicos consultados (para auditoria de cobertura das fontes)
                         "unique_domains_consulted": unique_domains,
-                        # Preview da resposta final (primeiros 500 chars para diagnóstico rápido)
                         "response_preview": content[:500],
                         **response_meta,
                     }
@@ -481,7 +449,7 @@ class LaborLawAgent:
                     log["timing_ms"]["tools_total"] = total_tools_ms
                     self._write_log(log)
 
-                    # Acumula na sessão: histórico trimado (sem a msg actual) + user + assistant
+                    # messages[:-1] exclui user_message (última posição) para não duplicar
                     assistant_msg = Message(role="assistant", content=content)
                     self._session_messages = _trim_history(
                         list(messages[:-1]) + [user_message, assistant_msg]
@@ -497,7 +465,6 @@ class LaborLawAgent:
                         execution_log=log,
                     )
 
-                # --- Processa tool calls ---
                 openai_messages.append(
                     {
                         "role": "assistant",
@@ -535,31 +502,26 @@ class LaborLawAgent:
                     tool_log: Dict[str, Any] = {
                         "name": function_name,
                         "arguments": function_args,
-                        # Categoria da tool: "search" (Tavily), "calculation" (local/determinístico),
-                        # ou "hybrid" (search_irs_tables que faz ambos)
+                        # "hybrid" = search_irs_tables (faz pesquisa Tavily + cálculo local)
                         "tool_type": (
                             "hybrid"
                             if function_name == "search_irs_tables"
                             else "search" if is_search else "calculation"
                         ),
                         "execution_ms": 0,
-                        # --- Métricas de resultado bruto ---
                         "result_chars_raw": 0,
                         "result_chars_sent": 0,
                         "result_truncated": False,
-                        "result_preview": None,  # primeiros 300 chars para debug
-                        # --- Detalhe de pesquisa (search / hybrid tools) ---
+                        "result_preview": None,
                         "search_query": (
                             function_args.get("query") if is_search else None
                         ),
                         "search_success": None,
                         "search_results_count": None,
-                        "search_results_titles": None,  # lista de títulos dos resultados Tavily
-                        # --- Detalhe de cálculo (calculation / hybrid tools) ---
-                        "computed_summary": None,  # valores-chave extraídos do resultado
-                        # --- Fontes ---
+                        "search_results_titles": None,
+                        "computed_summary": None,
                         "sources_found": 0,
-                        "source_urls": [],  # URLs das fontes (para auditoria)
+                        "source_urls": [],
                         "error": None,
                     }
 
@@ -573,13 +535,10 @@ class LaborLawAgent:
                             total_tools_ms += tool_ms
                             tool_log["execution_ms"] = tool_ms
 
-                            # --- Truncagem do resultado ---
-                            # Para tools de pesquisa (Tavily): limita a 3 resultados
-                            # completos em vez de cortar por caracteres arbitrários,
+                            # Limita a 3 resultados Tavily em vez de cortar por caracteres,
                             # evitando truncar a meio de um artigo relevante.
-                            # Para tools de cálculo: sem truncagem (resultado pequeno
-                            # e determinístico). Limite de segurança de 12k chars mantido
-                            # como último recurso para payloads inesperadamente grandes.
+                            # Tools de cálculo não são truncadas (resultado determinístico).
+                            # Limite de 12k chars mantido como último recurso.
                             if isinstance(result, dict) and "results" in result:
                                 original_results_count = len(result.get("results", []))
                                 result = {**result, "results": result["results"][:3]}
@@ -598,7 +557,6 @@ class LaborLawAgent:
                             tool_log["result_truncated"] = len(raw) > 12_000
                             tool_log["result_preview"] = truncated[:300]
 
-                            # Enriquece com detalhe de pesquisa (Tavily)
                             if isinstance(result, dict):
                                 if is_search or function_name == "search_irs_tables":
                                     tavily_results = result.get("results", [])
@@ -612,13 +570,11 @@ class LaborLawAgent:
                                         r.get("title", "") for r in tavily_results
                                     ]
 
-                                # Enriquece com resumo de cálculo (calculation / hybrid)
                                 if is_calc or function_name == "search_irs_tables":
                                     tool_log["computed_summary"] = (
                                         _extract_computed_summary(function_name, result)
                                     )
 
-                                # URLs das fontes (presente em todos os tipos de tool)
                                 tool_log["source_urls"] = _extract_source_urls(result)
 
                             sources = self._extract_sources(result)
@@ -655,7 +611,6 @@ class LaborLawAgent:
                 log["iterations"].append(iter_log)
                 log["timing_ms"]["per_iteration"].append(iter_log["elapsed_ms"])
 
-            # --- Max iterations atingido ---
             self._session_prompt_tokens += call_prompt_tokens
             self._session_completion_tokens += call_completion_tokens
             response_time = (time.time() - start_time) * 1000

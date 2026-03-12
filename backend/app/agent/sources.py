@@ -19,9 +19,6 @@ from urllib.parse import urlparse
 from ..models import Source
 
 
-# ---------------------------------------------------------------------------
-# Padrões indicadores de legislação revogada / versão histórica
-# ---------------------------------------------------------------------------
 _REVOKED_URL_PATTERNS = re.compile(
     r"lei_velhas|historico|/versao/|revogad|versoes[-_]?anteriores|antiga",
     re.IGNORECASE,
@@ -33,9 +30,6 @@ _REVOKED_TITLE_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-# ---------------------------------------------------------------------------
-# Extração de referência canónica de artigo a partir de URL / título
-# ---------------------------------------------------------------------------
 # Captura padrões como: artigo-238, art-238, art238, art. 238, artigo 238.º
 _ARTICLE_RE = re.compile(
     r"art(?:igo)?[-_.\s]*(\d{1,4})[.ºª]?",
@@ -59,16 +53,12 @@ def _extract_path_key(url: str) -> str:
     """Extrai o path da URL como chave de fallback para deduplicação."""
     try:
         parsed = urlparse(url)
-        # Remove trailing slashes e parâmetros de versão
         path = parsed.path.rstrip("/")
         return f"{parsed.netloc}{path}"
     except Exception:
         return url
 
 
-# ---------------------------------------------------------------------------
-# 1. Classificação de vigência
-# ---------------------------------------------------------------------------
 def classify_recency(sources: List[Source]) -> List[Source]:
     """
     Marca cada fonte como vigente (is_current=True) ou histórica/revogada
@@ -82,24 +72,19 @@ def classify_recency(sources: List[Source]) -> List[Source]:
         )
         s.is_current = not is_revoked
 
-    # Estáveis: vigentes primeiro, mantendo ordem relativa
     return sorted(sources, key=lambda s: (not s.is_current,))
 
 
-# ---------------------------------------------------------------------------
-# 2. Deduplicação por identidade de artigo
-# ---------------------------------------------------------------------------
 def deduplicate(sources: List[Source]) -> List[Source]:
     """
     Colapsa fontes que referem o mesmo artigo jurídico.
     Quando há duplicados, mantém a versão vigente (is_current=True) ou a
     primeira encontrada.
     """
-    seen: dict[str, int] = {}  # key → index no resultado
+    seen: dict[str, int] = {}
     result: List[Source] = []
 
     for s in sources:
-        # Tenta extrair chave de artigo; fallback para path da URL
         key = _extract_article_key(s.url, s.title) or _extract_path_key(s.url)
 
         if key in seen:
@@ -108,7 +93,6 @@ def deduplicate(sources: List[Source]) -> List[Source]:
             # Substitui se o existente é histórico mas o novo é vigente
             if not existing.is_current and s.is_current:
                 result[idx] = s
-            # Caso contrário, descarta o duplicado
         else:
             seen[key] = len(result)
             result.append(s)
@@ -116,14 +100,44 @@ def deduplicate(sources: List[Source]) -> List[Source]:
     return result
 
 
-# ---------------------------------------------------------------------------
-# 3. Reranking por pertinência (keyword-overlap simples)
-# ---------------------------------------------------------------------------
 _STOP_WORDS = {
-    "o", "a", "os", "as", "um", "uma", "de", "do", "da", "dos", "das",
-    "em", "no", "na", "nos", "nas", "por", "para", "com", "sem", "ao",
-    "à", "e", "ou", "que", "se", "é", "são", "como", "qual", "quais",
-    "ter", "tem", "têm", "ser", "foi", "está",
+    "o",
+    "a",
+    "os",
+    "as",
+    "um",
+    "uma",
+    "de",
+    "do",
+    "da",
+    "dos",
+    "das",
+    "em",
+    "no",
+    "na",
+    "nos",
+    "nas",
+    "por",
+    "para",
+    "com",
+    "sem",
+    "ao",
+    "à",
+    "e",
+    "ou",
+    "que",
+    "se",
+    "é",
+    "são",
+    "como",
+    "qual",
+    "quais",
+    "ter",
+    "tem",
+    "têm",
+    "ser",
+    "foi",
+    "está",
 }
 
 
@@ -149,16 +163,13 @@ def rerank(sources: List[Source], query: str) -> List[Source]:
         overlap = len(query_tokens & source_tokens)
         score = overlap / len(query_tokens) if query_tokens else 0.0
         s.relevance_score = round(score, 3)
-        # (score negativo para sort desc, índice para estabilidade)
+        # Score negativo para sort descendente; índice garante estabilidade
         scored.append((-score, i, s))
 
     scored.sort()
     return [s for _, _, s in scored]
 
 
-# ---------------------------------------------------------------------------
-# 4. Extracção de fontes efectivamente usadas na resposta
-# ---------------------------------------------------------------------------
 def extract_used_sources(
     sources: List[Source], response_text: str
 ) -> Tuple[List[Source], List[Source]]:
@@ -191,7 +202,6 @@ def extract_used_sources(
 
 def _source_cited(source: Source, response_lower: str) -> bool:
     """Verifica se uma fonte foi citada no texto da resposta (já em lowercase)."""
-    # 1. Domínio da URL
     try:
         domain = urlparse(source.url).netloc.lstrip("www.")
         if domain and domain in response_lower:
@@ -199,7 +209,6 @@ def _source_cited(source: Source, response_lower: str) -> bool:
     except Exception:
         pass
 
-    # 2. Número de artigo
     article_match = _ARTICLE_RE.search(source.title) or _ARTICLE_RE.search(source.url)
     if article_match:
         art_num = article_match.group(1)
@@ -214,10 +223,8 @@ def _source_cited(source: Source, response_lower: str) -> bool:
         if any(p in response_lower for p in art_patterns):
             return True
 
-    # 3. Fragmento do título (≥ 3 palavras consecutivas significativas)
     title_tokens = [t for t in _tokenize(source.title) if len(t) > 2]
     if len(title_tokens) >= 3:
-        # Tenta encontrar sequências de 3+ palavras do título na resposta
         title_lower = source.title.lower()
         words = re.findall(r"[a-záàâãéêíóôõúç\d]+", title_lower)
         significant = [w for w in words if w not in _STOP_WORDS and len(w) > 2]
@@ -229,16 +236,8 @@ def _source_cited(source: Source, response_lower: str) -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
-# Pipeline completa (classify → deduplicate → rerank)
-# ---------------------------------------------------------------------------
 def process_sources(sources: List[Source], query: str) -> List[Source]:
-    """
-    Aplica as 3 primeiras transformações da pipeline:
-      1. classify_recency
-      2. deduplicate
-      3. rerank
-    """
+    """Aplica classify_recency → deduplicate → rerank."""
     if not sources:
         return sources
     sources = classify_recency(sources)

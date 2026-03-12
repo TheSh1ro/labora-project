@@ -9,9 +9,8 @@ from typing import List, Dict, Any
 
 from ..models import Message, TokenUsage
 
-MAX_HISTORY_TURNS = (
-    5  # 5 pares user/assistant = 10 mensagens; o trim controla o contexto
-)
+# 5 pares user/assistant = 10 mensagens
+MAX_HISTORY_TURNS = 5
 
 PRICING = {
     "prompt": 0.15 / 1_000_000,
@@ -20,11 +19,10 @@ PRICING = {
 
 
 def _trim_history(messages: List[Message]) -> List[Message]:
-    """Mantém as últimas N trocas + mensagem actual."""
-    max_messages = MAX_HISTORY_TURNS * 2  # cada turno = user + assistant
+    """Mantém as últimas MAX_HISTORY_TURNS trocas (user + assistant)."""
+    max_messages = MAX_HISTORY_TURNS * 2
     if len(messages) <= max_messages:
         return messages
-    # Preserva as mais recentes
     return messages[-max_messages:]
 
 
@@ -40,9 +38,8 @@ def _build_openai_messages(
     """
     openai_messages = [{"role": "system", "content": system_prompt}]
 
-    # Pré-passo: identificar tool_call_ids válidos presentes no histórico.
     # Uma tool message só é válida se existir uma assistant message anterior
-    # com um tool_call que tenha o mesmo id.
+    # com um tool_call que tenha o mesmo id — evita erro 400 da API.
     valid_tool_call_ids: set = set()
     for msg in messages:
         if msg.role == "assistant" and msg.tool_calls:
@@ -55,8 +52,6 @@ def _build_openai_messages(
 
     for msg in messages:
         if msg.role == "tool":
-            # Descarta tool messages sem tool_call_id ou cujo id não tem
-            # assistant message correspondente — evita erro 400 da API.
             if not msg.tool_call_id or msg.tool_call_id not in valid_tool_call_ids:
                 logging.warning(
                     f"[session] tool message descartada — tool_call_id ausente ou órfão: "

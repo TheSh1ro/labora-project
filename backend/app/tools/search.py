@@ -4,12 +4,11 @@
 Tools de pesquisa (Tavily) para o agente de direito laboral português.
 
 Estratégias de retrieval:
-  1. search_labor_law      → Código do Trabalho (portal.act.gov.pt, pgdlisboa.pt)
-  2. search_irs_tables     → Tabelas IRS (info.portaldasfinancas.gov.pt)
-  3. search_social_security→ TSU / Seg. Social (diariodarepublica.pt, seg-social.pt)
+  1. search_labor_law       → Código do Trabalho (portal.act.gov.pt, pgdlisboa.pt)
+  2. search_irs_tables      → Tabelas IRS (info.portaldasfinancas.gov.pt)
+  3. search_social_security → TSU / Seg. Social (diariodarepublica.pt, seg-social.pt)
 
 Cada tool usa domínios específicos para a sua fonte — sem sobreposição.
-As queries chegam limpas do LLM, sem sufixos ou augmentation.
 """
 
 from typing import Dict, Any, Optional
@@ -23,11 +22,8 @@ from .data import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helper de busca Tavily
-# ---------------------------------------------------------------------------
 def _tavily_search(query: str, domains: list, max_results: int = 5) -> Dict[str, Any]:
-    """Executa busca Tavily nos domínios especificados. Query chega limpa do LLM."""
+    """Executa busca Tavily nos domínios especificados."""
     if not tavily_client:
         return {
             "success": False,
@@ -47,11 +43,6 @@ def _tavily_search(query: str, domains: list, max_results: int = 5) -> Dict[str,
         return {"success": False, "error": str(e), "results": [], "query": query}
 
 
-# ---------------------------------------------------------------------------
-# Estratégia 1: Código do Trabalho
-# Fonte: portal.act.gov.pt + pgdlisboa.pt
-# Cobre: contratos, férias, despedimento, lay-off, não concorrência, teletrabalho
-# ---------------------------------------------------------------------------
 def search_labor_law(query: str) -> Dict[str, Any]:
     """
     Pesquisa no Código do Trabalho português.
@@ -60,11 +51,6 @@ def search_labor_law(query: str) -> Dict[str, Any]:
     return _tavily_search(query, DOMAINS_LABOR_LAW)
 
 
-# ---------------------------------------------------------------------------
-# Estratégia 2: Tabelas de Retenção IRS
-# Fonte: info.portaldasfinancas.gov.pt
-# Cobre: taxas de retenção mensais, escalões, deduções por dependente, IRS Jovem
-# ---------------------------------------------------------------------------
 def search_irs_tables(
     year: int,
     income: Optional[float] = None,
@@ -140,11 +126,6 @@ def search_irs_tables(
     return result
 
 
-# ---------------------------------------------------------------------------
-# Estratégia 3: Segurança Social / TSU
-# Fonte: diariodarepublica.pt + seg-social.pt
-# Cobre: taxas TSU, regimes especiais, isenções, base de incidência
-# ---------------------------------------------------------------------------
 def search_social_security(query: str) -> Dict[str, Any]:
     """
     Pesquisa contribuições e TSU — Lei n.º 110/2009 (Código dos Regimes Contributivos).
